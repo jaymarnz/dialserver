@@ -4,7 +4,7 @@ import { WsServer } from './wsserver.mjs';
 
 // Configuration parameters
 const config = {
-  logging: true,
+  logging: false,
   keepaliveTime: 30000, // if changed then client must also be changed
   wsPort: 3000,
   htmlPort: 3080,

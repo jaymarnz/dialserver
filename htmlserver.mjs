@@ -27,7 +27,9 @@ export class HtmlServer {
 
     const webserver = express()
     .use((req, res) => res.sendFile(this.#config.indexFile, { root: __dirname }))
-    .listen(this.#config.htmlPort, () => console.log(`Web server listening on ${this.#config.htmlPort}`))
+    .listen(this.#config.htmlPort, () => {
+      if (this.#config.logging) console.log(`Web server listening on ${this.#config.htmlPort}`)
+    })
     .on('error', console.error) 
   }
 }
