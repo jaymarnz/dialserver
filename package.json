@@ -1,0 +1,13 @@
+{
+  "name": "dialserver",
+  "version": "1.0.0",
+  "description": "Websocket interface for Microsoft Surface Dial",
+  "author": "jaymarnz",
+  "main": "dialserver.mjs",
+  "type": "module",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.13.0"
+  }
+}

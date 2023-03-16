@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+</head>
+<body>
+  <input type="button" value="Reset" onclick="reset()">
+  <div id="messages"></div>
+  <script>
+    const webSocket = new WebSocket('ws://' + window.location.hostname + ':8081/');
+    
+    webSocket.onmessage = (event) => {
+      document.getElementById('messages').innerHTML += event.data + "<br>";
+    };
+    
+    webSocket.addEventListener("open", () => {
+      console.log("Connected to dialServer");
+    });
+    
+    function reset() {
+      document.getElementById('messages').innerHTML = '';
+    }
+  </script>
+</body>
+</html>
