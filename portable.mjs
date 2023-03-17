@@ -5,14 +5,14 @@ export class Portable {
   #isLE = os.endianness() == 'LE'
   #buffer
 
-  constructor (buffer) {
+  constructor(buffer) {
     this.#buffer = buffer
   }
 
   static is64Bit() {
     return ['arm64', 'ppc64', 'x64', 's390x'].includes(os.arch())
   }
-  
+
   readBigUInt64(offset) {
     return this.#isLE ? this.#buffer.readBigUInt64LE(offset) : this.#buffer.readBigUInt64BE(offset)
   }

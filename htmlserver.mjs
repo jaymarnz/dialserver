@@ -1,10 +1,10 @@
 import express from 'express'
 
 // hack to get __dirname when within a module
-import path from 'path';
-import { fileURLToPath } from 'url';
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import path from 'path'
+import { fileURLToPath } from 'url'
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // Note: It's possible to run both html and ws sessions on the same port
 // but I don't think it's worth the trouble for this application. The html
@@ -18,7 +18,7 @@ export class HtmlServer {
 
   constructor(config) {
     this.#config = {
-      ...{ 
+      ...{
         htmlPort: 3080,
         indexFile: '/index.html',
       },
@@ -26,10 +26,10 @@ export class HtmlServer {
     }
 
     const webserver = express()
-    .use((req, res) => res.sendFile(this.#config.indexFile, { root: __dirname }))
-    .listen(this.#config.htmlPort, () => {
-      if (this.#config.logging) console.log(`Web server listening on ${this.#config.htmlPort}`)
-    })
-    .on('error', console.error) 
+      .use((req, res) => res.sendFile(this.#config.indexFile, { root: __dirname }))
+      .listen(this.#config.htmlPort, () => {
+        if (this.#config.logging) console.log(`Web server listening on ${this.#config.htmlPort}`)
+      })
+      .on('error', console.error)
   }
 }

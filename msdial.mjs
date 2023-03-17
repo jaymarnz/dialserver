@@ -15,7 +15,7 @@ export class DialDevice {
     this.#bufferSize = Portable.is64Bit() ? 24 : 16
     this.#buf = Buffer.alloc(this.#bufferSize)
   }
-  
+
   async open() {
     if (this.#config.verbose) console.log('DialDevice open')
     this.#fd = await open(this.#config.eventFilePath, 'r')
@@ -55,11 +55,11 @@ export class DialDevice {
     return buffer.readBigUInt64LE(offset)
   }
 
-  readUInt16(buffer,offset) {
+  readUInt16(buffer, offset) {
     return buffer.readUInt16LE(offset)
   }
 
-  readInt32(buffer,offset) {
+  readInt32(buffer, offset) {
     return buffer.readInt32LE(offset)
   }
 }

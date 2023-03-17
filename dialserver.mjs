@@ -31,7 +31,7 @@ export class DialServer {
         // stop processing when the file is gone and we'll wait for it to reappear
         while (await this.#fileExists(this.#config.eventFilePath))
           await this.#processDeviceInput()
-          await new Promise(resolve => setTimeout(resolve, 1000))
+        await new Promise(resolve => setTimeout(resolve, 1000))
       }
     }
   }
@@ -58,7 +58,7 @@ export class DialServer {
             this.#aggregateRotation(event.value)
             break
         }
-      } 
+      }
     } catch (error) {
       this.#log('error reading events:')
       this.#log(error)

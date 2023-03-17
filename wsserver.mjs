@@ -6,14 +6,14 @@ export class WsServer {
   #interval
 
   constructor(config = {}) {
-    this.#config = { 
-      ...{ 
+    this.#config = {
+      ...{
         wsPort: 3000,
-        keepaliveTime: 30*1000
+        keepaliveTime: 30 * 1000
       },
       ...config
     }
-    
+
     this.#wss = new WebSocketServer({ port: this.#config.wsPort })
     this.#log(`Waiting for websocket clients on port ${this.#config.wsPort}`)
 
@@ -25,8 +25,8 @@ export class WsServer {
       this.send({ status: 'connected' })
 
       client.on('error', console.error);
-      client.on('close', event => this.#log(`client disconnected: ${client.id}`) )
-      client.on('message', data => this.#log(`< ${client.id} ${data.toString()}`) )
+      client.on('close', event => this.#log(`client disconnected: ${client.id}`))
+      client.on('message', data => this.#log(`< ${client.id} ${data.toString()}`))
       client.on('pong', () => {
         this.#log(`client pong received: ${client.id}`)
         client.isAlive = true

@@ -25,24 +25,24 @@ const argv = yargs(hideBin(process.argv))
   .command('<event-file>', 'event file found in /dev/input')
   .demandCommand(1, 1, 'event-file is required', 'too many command line arguments')
   // .demandCommand(1, 'event-file is required')
-  .option('d', { 
+  .option('d', {
     alias: 'debug',
     describe: 'enable debug logging',
     type: 'boolean',
     default: false
   })
-  .option('verbose', { 
+  .option('verbose', {
     describe: 'enable verbose logging',
     type: 'boolean',
     default: false
   })
-  .option('p', { 
+  .option('p', {
     alias: 'port',
     describe: 'Web sockets port (ws://)',
     type: 'number',
     default: 3000
   })
-  .option('w', { 
+  .option('w', {
     alias: 'web',
     describe: 'Web server port (http://)',
     type: 'number',
@@ -67,5 +67,6 @@ new HtmlServer(config)
 
 await new DialServer({
   ...config,
-  ...{ eventFilePath: config.inputDir + '/' + config.eventFile } })
-.run()
+  ...{ eventFilePath: config.inputDir + '/' + config.eventFile }
+})
+  .run()
