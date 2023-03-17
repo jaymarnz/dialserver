@@ -64,7 +64,7 @@ export class WsServer {
     })
   }
 
-  #log(str) {
-    if (this.#config.logging) console.log(str)
+  #log(...str) {
+    if (this.#config.logging) console.log(...str)
   }
 }

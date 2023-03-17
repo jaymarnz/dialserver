@@ -1,81 +1,109 @@
+import { access } from 'node:fs/promises'
+import { watch } from 'node:fs/promises'
 import { DialDevice } from './msdial.mjs'
-import { HtmlServer } from './htmlserver.mjs'
 import { WsServer } from './wsserver.mjs';
 
-// Configuration parameters
-const config = {
-  logging: false,
-  keepaliveTime: 30000, // if changed then client must also be changed
-  wsPort: 3000,
-  htmlPort: 3080,
-  dialEventFile: 'event2', // TBS ********** make this a parameter
-  retryTimer: 50, // time between retries on device errors
-  sendTimer: 50, // aggregation time
-  minDegrees: 0.5 // minimum reportable rotation
-}
+export class DialServer {
+  #config
+  #wsServer
+  #aggregate = 0
+  #aggregateTimer
 
-// dial rotation aggregation
-let aggregate = 0
-let aggregating = false
+  constructor(config) {
+    this.#config = config
+    this.#wsServer = new WsServer(this.#config)
+  }
 
-// The usual sleep function
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
+  async run() {
+    // get the ball rolling right away if the event file already exists
+    if (await this.#fileExists(this.#config.eventFilePath)) {
+      await this.#processDeviceInput()
+      await this.#waitForEventFile()
+    } else await this.#waitForEventFile()
+  }
 
-// create html and websocket servers
-const webServer = new HtmlServer(config)
-const wsServer = new WsServer(config)
-
-// read from the event device with retries
-while (true) {
-  let dialDevice
-
-  try {
-    dialDevice = new DialDevice(config)
-    await dialDevice.open()
-
-    // read events from the input device
-    while (true) {
-      const event = await dialDevice.read()
-
-      // aggregate rotation but immediately process clicks
-      switch (event.type) {
-        case 1:
-          wsServer.send({ button: event.value ? 'down' : 'up' })
-          break
-        case 2:
-          aggregateEvents(wsServer, event.value)
-          break
+  // watch for the event file to be present and process it
+  async #waitForEventFile() {
+    this.#log('waitForEventFile')
+    for await (const event of watch('/dev/input/')) {
+      if (event.eventType === 'rename' && event.filename === this.#config.eventFile) {
+        // retry processing the event file in case of an unexpected error
+        // stop processing when the file is gone and we'll wait for it to reappear
+        while (await this.#fileExists(this.#config.eventFilePath))
+          await this.#processDeviceInput()
+          await new Promise(resolve => setTimeout(resolve, 1000))
       }
-    } 
-  } catch (error) {
-    // console.error('error reading events:', error)
+    }
   }
 
-  // close the dialDevice and try again
-  try {
-    if (dialDevice) await dialDevice.close()
-  } catch (error) {
-    console.error('error closing dialDevice:', error)
-  }
-  
-  // wait a little bit before trying again
-  dialDevice = undefined
-  await sleep(config.retryTimer)
-}
+  // process input from the device
+  async #processDeviceInput() {
+    let dialDevice
+    this.#log('processDeviceInput')
 
-// event aggregation and emission
-async function aggregateEvents(wsServer, value) {
-  aggregate += value
-  if (!aggregating) {
-    aggregating = true
-    sleep(config.sendTimer)
-    .then (() => {
-      let degrees = aggregate / 10.0
-      aggregating = false
-      aggregate = 0
-      if (Math.abs(degrees) >= config.minDegrees) wsServer.send({ degrees })
-    })
+    try {
+      dialDevice = new DialDevice(this.#config)
+      await dialDevice.open()
+
+      // read events from the input device
+      while (true) {
+        const event = await dialDevice.read()
+
+        // aggregate rotation but immediately process clicks
+        switch (event.type) {
+          case 1:
+            this.#wsServer.send({ button: event.value ? 'down' : 'up' })
+            break
+          case 2:
+            this.#aggregateRotation(event.value)
+            break
+        }
+      } 
+    } catch (error) {
+      this.#log('error reading events:')
+      this.#log(error)
+    }
+
+    // close the dialDevice
+    try {
+      if (dialDevice) await dialDevice.close()
+    } catch (error) {
+      this.#log('error closing dialDevice:')
+      this.#log(error)
+    }
+  }
+
+  // don't send every rotation. rather, aggregate them and send periodically
+  #aggregateRotation(value) {
+    this.#aggregate += value
+
+    if (!this.#aggregateTimer) {
+      this.#aggregateTimer = setTimeout(() => {
+        this.#aggregateTimer = undefined
+        let degrees = this.#aggregate / 10.0
+        this.#aggregate = 0
+        if (Math.abs(degrees) >= this.#config.minDegrees)
+          this.#wsServer.send({ degrees })
+      }, this.#config.aggregationTime)
+    }
+  }
+
+  // return true if a file exists
+  async #fileExists(filename) {
+    try {
+      await access(filename)
+      return true
+    } catch (error) {
+      if (!['ENOENT', 'EACCES'].includes(error.code)) {
+        this.#log('error checking file existance:')
+        this.#log(error)
+      }
+    }
+
+    return false
+  }
+
+  #log(...str) {
+    if (this.#config.logging) console.log(...str)
   }
 }

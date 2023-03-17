@@ -8,6 +8,7 @@
   "license": "ISC",
   "dependencies": {
     "express": "^4.18.2",
-    "ws": "^8.13.0"
+    "ws": "^8.13.0",
+    "yargs": "^17.7.1"
   }
 }
