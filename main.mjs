@@ -63,7 +63,7 @@ const config = {
 }
 
 // create a shortcut to the full path of the event file and away we go...
-new HtmlServer(config)
+if (config.htmlPort !== 0) new HtmlServer(config)
 
 await new DialServer({
   ...config,
