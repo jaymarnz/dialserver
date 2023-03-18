@@ -8,7 +8,7 @@
   <input type="button" value="Reset" onclick="reset()">
   <div id="messages"></div>
   <script>
-    const webSocket = new WebSocket('ws://' + window.location.hostname + ':3080/');
+    const webSocket = new WebSocket('ws://' + window.location.hostname + ':3000/');
 
     webSocket.onmessage = (event) => {
       document.getElementById('messages').innerHTML += event.data + "<br>";
