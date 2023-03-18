@@ -12,7 +12,7 @@ The code is designed to be portable between 32/64 bit and big or little endian b
 ## Usage
 The preferred method is to install it as a service so it is always running. See the installation section. However, for testing and development you can run it directly:
 ```
-$ node main.mjs <event-file> [options]`
+$ node main.mjs <event-file> [options]
 ```
 
 `event-file` is required and is found in /dev/input. See the installation instructions to determine the name of this file.
@@ -60,7 +60,7 @@ I've tested this on an RPi running 64 bit Raspberry PI OS but it should work, or
     ```
 
 ## Pairing the Microsoft Surface Dial
-You only need to do this once to pair your RPi with the Suface Dial. After it has been paired it should stay paired across reboots of the RPi, etc.
+You only need to do this once to pair your RPi with the Surface Dial. After it has been paired it should stay paired across reboots of the RPi, etc.
 
 Thanks to https://cuteprogramming.wordpress.com/2020/10/31/controlling-raspberry-pi-with-surface-dial/ for this and other useful Surface Dial info.
 
@@ -119,18 +119,18 @@ Thanks to https://cuteprogramming.wordpress.com/2020/10/31/controlling-raspberry
     ***Note:*** The Surface Dial times out and goes to sleep after about 5 minutes of inactivity. While it is asleep the event handler file won't be there anymore. So if it's taken a few minutes to do the above, touch the Surface Dial (click or rotate it) and it will wake up although it takes a second or so for it to wake up. See below for this issue.
 
 ## Configure and install DialServer
-1. Copy the contents of this repository to a directory somewhere (eg. `~/dialserver`)
+1. Download the contents of this repository to a directory somewhere (eg. `~/dialserver`)
 
-2. Download required Node packages
+2. Install required Node packages
     ````
     $ cd ~/dialserver
     $ npm install
     ````
 
-3. To keep it running all the time you can install it as a service substituting the event file from where you paired the Surface Dial in the steps above.
+3. To keep it running all the time you can install it as a service specifying the event file from when you paired the Surface Dial in the steps above. The install script copies the files to /opt/dialserver, edits the service file, and uses systemctl to create, enable and start the dialserver.service
     ````
     $ chmod +x install.sh
-    $ ./install <event-file>
+    $ sudo ./install <event-file>
     ````
 
 4. You can also run it directly using the options shown above. If you've already started it as a service then you'll need to stop it first
