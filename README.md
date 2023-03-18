@@ -148,6 +148,8 @@ See `index.html` for an example of connecting and viewing the web socket message
 ````
 
 ## Issues
+### ***Falls asleep way too fast***
+The only issue I'm aware of is the Surface Dial goes to sleep after about 5 mins of inactivity. This is super annoying! But I haven't been able to find any info about how to work-around this yet. So, you'll need to wake it up by pressing the button or turning it and then wait a few seconds for it come fully awake. At that point it will work as expected until its idle timeout kicks in again.
 
 ## Roadmap
 1. I'd like to figure out how to keep the Surface Dial awake for longer. Perhaps this can be done by exploring the Surface Dial System Control event handler. If anyone has experience with this, I'd appreciate hearing about it.
