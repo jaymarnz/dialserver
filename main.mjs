@@ -6,25 +6,20 @@ import { HtmlServer } from './htmlserver.mjs'
 // Configuration parameters
 const defaultConfig = {
   logging: false,
-  dialLogging: false, // enable logging only during debugging since it's very noisy
+  verbose: false,
   keepaliveTime: 30000, // if changed then client must also be changed
   wsPort: 3000,
   htmlPort: 3080,
-  inputDir: '/dev/input',
-  eventFile: undefined, // must be supplied in command line arg
   aggregationTime: 50,
   minDegrees: 0.5 // minimum reportable rotation
 }
 
 const argv = yargs(hideBin(process.argv))
   .strictOptions()
-  .usage('Usage: $0 <event-file> [options]')
+  .usage('Usage: $0 [options]')
   .help()
   .alias('v', 'version')
   .alias('h', 'help')
-  .command('<event-file>', 'event file found in /dev/input')
-  .demandCommand(1, 1, 'event-file is required', 'too many command line arguments')
-  // .demandCommand(1, 'event-file is required')
   .option('d', {
     alias: 'debug',
     describe: 'enable debug logging',
@@ -53,20 +48,12 @@ const argv = yargs(hideBin(process.argv))
 const config = {
   ...defaultConfig,
   ...{
-    eventFile: argv._[0],
-    eventFilePath: defaultConfig.inputDir + '/' + argv._[0],
-    logging: argv.debug,
+    logging: argv.debug || argv.verbose,
     verbose: argv.verbose,
     wsPort: argv.port,
     htmlPort: argv.web,
   }
 }
 
-// create a shortcut to the full path of the event file and away we go...
 if (config.htmlPort !== 0) new HtmlServer(config)
-
-await new DialServer({
-  ...config,
-  ...{ eventFilePath: config.inputDir + '/' + config.eventFile }
-})
-  .run()
+await new DialServer(config).run()

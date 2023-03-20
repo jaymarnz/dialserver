@@ -1,7 +1,15 @@
-import { access } from 'node:fs/promises'
-import { watch } from 'node:fs/promises'
+import udev from 'udev'
 import { DialDevice } from './msdial.mjs'
 import { WsServer } from './wsserver.mjs';
+
+// these are the only event types I've observed with the Surface Dial
+// see https://www.kernel.org/doc/Documentation/input/event-codes.txt
+const EventType = {
+  EV_SYN: 0,
+  EV_KEY: 1,
+  EV_REL: 2,
+  EV_MSC: 4
+}
 
 export class DialServer {
   #config
@@ -15,34 +23,41 @@ export class DialServer {
   }
 
   async run() {
-    // get the ball rolling right away if the event file already exists
-    if (await this.#fileExists(this.#config.eventFilePath)) {
-      await this.#processDeviceInput()
-      await this.#waitForEventFile()
-    } else await this.#waitForEventFile()
+    // get the ball rolling right away if the device is connected
+    for (const device of udev.list('input')) {
+      if (this.#isSurfaceDial(device)) await this.#processDeviceInput(device.DEVNAME)
+    }
+
+    // monitor new input devices for the Surface Dial to connect
+    udev.monitor('input').on('add', async (device) => {
+      if (this.#isSurfaceDial(device)) await this.#processDeviceInput(device.DEVNAME)
+    })
   }
 
-  // watch for the event file to be present and process it
-  async #waitForEventFile() {
-    this.#log('waitForEventFile')
-    for await (const event of watch('/dev/input/')) {
-      if (event.eventType === 'rename' && event.filename === this.#config.eventFile) {
-        // retry processing the event file in case of an unexpected error
-        // stop processing when the file is gone and we'll wait for it to reappear
-        while (await this.#fileExists(this.#config.eventFilePath))
-          await this.#processDeviceInput()
-        await new Promise(resolve => setTimeout(resolve, 1000))
-      }
+  // is this device the Surface Dial?
+  #isSurfaceDial(device) {
+    try {
+      const parent = udev.getNodeParentBySyspath(device.syspath)
+      return (parent && parent.NAME === '"Surface Dial System Multi Axis"')
+    } catch (error) {
+      // I'm not sure yet why but udev sometimes throws "device not found" for this syspath
+      // Probably a timing thing but once I figure it out I can make this function static
+      // again when the logging is removed.
+      this.#log('isSurfaceDial error')
+      this.#log(error)
+      this.#log('device:', device)
     }
+
+    return false
   }
 
   // process input from the device
-  async #processDeviceInput() {
+  async #processDeviceInput(devname) {
     let dialDevice
-    this.#log('processDeviceInput')
+    this.#log('device is connected')
 
     try {
-      dialDevice = new DialDevice(this.#config)
+      dialDevice = new DialDevice(devname, this.#config)
       await dialDevice.open()
 
       // read events from the input device
@@ -51,17 +66,21 @@ export class DialServer {
 
         // aggregate rotation but immediately process clicks
         switch (event.type) {
-          case 1:
+          case EventType.EV_KEY:
             this.#wsServer.send({ button: event.value ? 'down' : 'up' })
             break
-          case 2:
+          case EventType.EV_REL:
             this.#aggregateRotation(event.value)
             break
         }
       }
     } catch (error) {
-      this.#log('error reading events:')
-      this.#log(error)
+      if (error.code === 'ENODEV') { // this is the expected error when it disconnects
+        this.#log('device has disconnected')
+      } else {
+        this.#log('error reading events:')
+        this.#log(error)
+      }
     }
 
     // close the dialDevice
@@ -86,21 +105,6 @@ export class DialServer {
           this.#wsServer.send({ degrees })
       }, this.#config.aggregationTime)
     }
-  }
-
-  // return true if a file exists
-  async #fileExists(filename) {
-    try {
-      await access(filename)
-      return true
-    } catch (error) {
-      if (!['ENOENT', 'EACCES'].includes(error.code)) {
-        this.#log('error checking file existance:')
-        this.#log(error)
-      }
-    }
-
-    return false
   }
 
   #log(...str) {

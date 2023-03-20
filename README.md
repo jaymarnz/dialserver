@@ -12,10 +12,8 @@ The code is designed to be portable between 32/64 bit and big or little endian b
 ## Usage
 The preferred method is to install it as a service so it is always running. See the installation section. However, for testing and development you can run it directly:
 ```
-$ node main.mjs <event-file> [options]
+$ node main.mjs [options]
 ```
-
-`event-file` is required and is found in /dev/input. See the installation instructions to determine the name of this file.
 
 Options:
 <table>
@@ -95,29 +93,6 @@ Thanks to https://cuteprogramming.wordpress.com/2020/10/31/controlling-raspberry
     [CHG] Device XX:XX:XX:XX:XX:XX Connected: yes
     ```
 
-5. Once you've paired the Surface Dial an event file is created in `/dev/input`. You now just need to figure out which one corresponds to the Surface Dial.
-    ````
-    $ cat /proc/bus/input/devices
-    ````
-    You'll see something like this:
-    ````
-    ...
-    I: Bus=0005 Vendor=045e Product=091b Version=0108
-    N: Name="Surface Dial System Multi Axis"
-    ...
-    H: Handlers=event2 
-    ...
-      
-    I: Bus=0005 Vendor=045e Product=091b Version=0108
-    N: Name="Surface Dial System Control"
-    ...
-    H: Handlers=kbd event3  
-    ...
-    ````
-    The one you want is associated with "Surface Dial System Multi Axis". This provides the raw data stream. In this example "event2". This is what you'll pass to DialServer when running it directly or to the install script for running it as a service.
-
-    ***Note:*** The Surface Dial times out and goes to sleep after about 5 minutes of inactivity. While it is asleep the event handler file won't be there anymore. So if it's taken a few minutes to do the above, touch the Surface Dial (click or rotate it) and it will wake up although it takes a second or so for it to wake up. See below for this issue.
-
 ## Configure and install DialServer
 1. Download the contents of this repository to a directory somewhere (eg. `~/dialserver`)
 
@@ -127,24 +102,24 @@ Thanks to https://cuteprogramming.wordpress.com/2020/10/31/controlling-raspberry
     $ npm install
     ````
 
-3. To keep it running all the time you can install it as a service specifying the event file from when you paired the Surface Dial in the steps above. The install script copies the files to /opt/dialserver, edits the service file, and uses systemctl to create, enable and start the dialserver.service
+3. To keep it running all the time you can install it as a service. The install script copies the files to /opt/dialserver and uses systemctl to create, enable and start the dialserver.service
     ````
     $ chmod +x install.sh
-    $ sudo ./install <event-file>
+    $ sudo ./install.sh
     ````
 
 4. You can also run it directly using the options shown above. If you've already started it as a service then you'll need to stop it first
     ````
     $ sudo systemctl stop dialserver.service
-    $ node main.mjs <event-file>
+    $ node main.mjs [options]
     ````
 ## Web socket messages
 See `index.html` for an example of connecting and viewing the web socket messages. All messages are in JSON format. Examples:
 ````
-{ "button" : "up" }
 { "button" : "down" }
-{ "degrees" : "3.1" }
-{ "degrees" : "-5.3" }
+{ "button" : "up" }
+{ "degrees" : 3.1 }
+{ "degrees" : -5.3 }
 ````
 
 ## Issues

@@ -4,11 +4,13 @@ import { Portable } from './portable.mjs'
 
 export class DialDevice {
   #config
+  #devname
   #bufferSize
   #buf
   #fd
 
-  constructor(config = {}) {
+  constructor(devname, config = {}) {
+    this.#devname = devname
     this.#config = config
     if (this.#config.verbose) console.log('DialDevice constructor')
 
@@ -18,8 +20,8 @@ export class DialDevice {
 
   async open() {
     if (this.#config.verbose) console.log('DialDevice open')
-    this.#fd = await open(this.#config.eventFilePath, 'r')
-    // if (this.#config.verbose) console.log('FD:', this.#fd)
+    this.#fd = await open(this.#devname, 'r')
+  // if (this.#config.verbose) console.log('FD:', this.#fd)
   }
 
   async close() {
