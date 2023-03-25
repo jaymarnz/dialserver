@@ -2,16 +2,19 @@ import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
 import { DialServer } from './dialserver.mjs'
 import { HtmlServer } from './htmlserver.mjs'
+import { Log } from './log.mjs'
 
 // Configuration parameters
 const defaultConfig = {
-  logging: false,
+  debug: false,
   verbose: false,
   keepaliveTime: 30000, // if changed then client must also be changed
   wsPort: 3000,
   htmlPort: 3080,
   aggregationTime: 50,
-  minDegrees: 0.5 // minimum reportable rotation
+  minDegrees: 0.5, // minimum reportable rotation
+  dialSteps: 3600, // number of subdivisions the dial should use (don't change this)
+  buzzRepeatCountConnect: 4 // controls the "feel" on device wake-up
 }
 
 const argv = yargs(hideBin(process.argv))
@@ -31,6 +34,12 @@ const argv = yargs(hideBin(process.argv))
     type: 'boolean',
     default: false
   })
+  .option('b', {
+    alias: 'buzz',
+    describe: 'enable buzz on wake-up',
+    type: 'boolean',
+    default: true
+  })
   .option('p', {
     alias: 'port',
     describe: 'Web sockets port (ws://)',
@@ -48,12 +57,14 @@ const argv = yargs(hideBin(process.argv))
 const config = {
   ...defaultConfig,
   ...{
-    logging: argv.debug || argv.verbose,
+    debug: argv.debug || argv.verbose,
     verbose: argv.verbose,
     wsPort: argv.port,
     htmlPort: argv.web,
+    buzz: argv.buzz
   }
 }
 
+Log.init(config)
 if (config.htmlPort !== 0) new HtmlServer(config)
 await new DialServer(config).run()

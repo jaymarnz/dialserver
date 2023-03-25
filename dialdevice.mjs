@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer'
 import { open } from 'node:fs/promises'
 import { Portable } from './portable.mjs'
+import { Log } from './log.mjs'
 
 export class DialDevice {
   #config
@@ -12,27 +13,27 @@ export class DialDevice {
   constructor(devname, config = {}) {
     this.#devname = devname
     this.#config = config
-    if (this.#config.verbose) console.log('DialDevice constructor')
+    Log.verbose('DialDevice constructor')
 
     this.#bufferSize = Portable.is64Bit() ? 24 : 16
     this.#buf = Buffer.alloc(this.#bufferSize)
   }
 
   async open() {
-    if (this.#config.verbose) console.log('DialDevice open')
+    Log.verbose('DialDevice open')
     this.#fd = await open(this.#devname, 'r')
-  // if (this.#config.verbose) console.log('FD:', this.#fd)
+    // Log.verbose('FD:', this.#fd)
   }
 
   async close() {
-    if (this.#config.verbose) console.log('DialDevice close')
+    Log.verbose('DialDevice close')
     let fd = this.#fd
     this.#fd = undefined
     return fd ? fd.close() : Promise.resolve()
   }
 
   async read() {
-    if (this.#config.verbose) console.log('DialDevice read')
+    Log.verbose('DialDevice read')
     const result = await this.#fd.read(this.#buf, { length: this.#bufferSize })
 
     const event = Portable.is64Bit() ? {
@@ -49,7 +50,7 @@ export class DialDevice {
       value: new Portable(result.buffer).readInt32(12)
     }
 
-    // if (this.#config.verbose) console.log('DialDevice:', event)
+    Log.verbose('DialDevice:', event)
     return event
   }
 

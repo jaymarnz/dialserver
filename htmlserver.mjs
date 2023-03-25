@@ -1,4 +1,5 @@
 import express from 'express'
+import { Log } from './log.mjs'
 
 // hack to get __dirname when within a module
 import path from 'path'
@@ -28,7 +29,7 @@ export class HtmlServer {
     const webserver = express()
       .use((req, res) => res.sendFile(this.#config.indexFile, { root: __dirname }))
       .listen(this.#config.htmlPort, () => {
-        if (this.#config.logging) console.log(`Web server listening on ${this.#config.htmlPort}`)
+        Log.debug(`Web server listening on ${this.#config.htmlPort}`)
       })
       .on('error', console.error)
   }

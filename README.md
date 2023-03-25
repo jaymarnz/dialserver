@@ -19,6 +19,7 @@ Options:
 <table>
 <tr><td>-p,</td><td>--port</td><td>Web sockets port (ws://)</td><td>default: 3000</td>
 <tr><td>-w,</td><td>--web</td><td>Web server port (http://)</td><td>default: 3080</td>
+<tr><td>-b,</td><td>--no-buzz</td><td>Disable buzz on wake-up</td><td></td>
 <tr><td>-d,</td><td>--debug</td><td>Enable debug logging</td><td></td>
 <tr><td></td><td>--verbose</td><td>Enable verbose logging</td><td></td>
 <tr><td>-v</td><td>--version</td><td>Show version number</td><td></td>
@@ -26,6 +27,8 @@ Options:
 </table>
 
 By default it creates both a web server and a web-socket server. The web server is just used for testing and spying on the output. Connect to it with your browser and it only serves a single page that displays data coming from the web-socket. You can disable this with `-w 0`
+
+By default it will use the Surface Dial's haptic feedback to let you know when it wakes up and is ready to handle gestures. You can disable this with `--no-buzz`. If buzz is enabled you must run DialServer as root which the install below does for you. But if you want to run from non-root and have buzz on wake-up then you must create a udev rule based on the vendorId and productId. The Microsoft Surface Dial vendorId is 0x045e and the productId is 0x091b. See https://github.com/node-hid/node-hid#udev-device-permissions for an example.
 
 ## Installation
 I've tested this on an RPi running 64 bit Raspberry PI OS but it should work, or be easily adapted, to most any Linux.
@@ -124,9 +127,9 @@ See `index.html` for an example of connecting and viewing the web socket message
 
 ## Issues
 ### ***Falls asleep way too fast***
-The only issue I'm aware of is the Surface Dial goes to sleep after about 5 mins of inactivity. This is super annoying! But I haven't been able to find any info about how to work-around this yet. So, you'll need to wake it up by pressing the button or turning it and then wait a few seconds for it come fully awake. At that point it will work as expected until its idle timeout kicks in again.
+The only issue I'm aware of is the Surface Dial goes to sleep after about 5 mins of inactivity. This is super annoying! But I haven't been able to find any info about how to work-around this yet. So, you'll need to wake it up by pressing the button or turning it and then wait a few seconds for it come fully awake. At that point it will work as expected until its idle timeout kicks in again. Because of the short delay during wake-up and to improve the UX, DialServer uses the Surface Dial's haptic feedback to indicate when it is awake and ready to handle gestures.
 
 ## Roadmap
-1. I'd like to figure out how to keep the Surface Dial awake for longer. Perhaps this can be done by exploring the Surface Dial System Control event handler. If anyone has experience with this, I'd appreciate hearing about it.
+1. I'd like to figure out how to keep the Surface Dial awake for longer. Perhaps this can be done by via the Surface Dial's Control endpoint. If anyone has experience with this, I'd appreciate hearing about it.
 
-2. I use this Web Socket server with my BluView web app to display and control a Bluesound NODE. It works great but I'd like to experiment with using the Web Bluetooth api to see if I can interface BluView directly to the Surface and eliminate it's need for this Web Socket server. See that repository if you are interested or have information to share.
+2. I use this Web Socket server with my BluView web app to display and control a Bluesound NODE. It works great but I'd like to experiment with using the Web Bluetooth api to see if I can interface BluView directly and eliminate it's need for this Web Socket server. See that repository if you are interested or have information to share about using Web Bluetooth with a Surface Dial.

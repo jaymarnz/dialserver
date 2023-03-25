@@ -1,4 +1,5 @@
 import { WebSocketServer, WebSocket } from 'ws'
+import { Log } from './log.mjs'
 
 export class WsServer {
   #config
@@ -15,20 +16,20 @@ export class WsServer {
     }
 
     this.#wss = new WebSocketServer({ port: this.#config.wsPort })
-    this.#log(`Waiting for websocket clients on port ${this.#config.wsPort}`)
+    Log.debug(`Waiting for websocket clients on port ${this.#config.wsPort}`)
 
     this.#wss.on('connection', (client, req) => {
       client.id = req.headers['sec-websocket-key'] // for logging purposes create an id for each client
       client.isAlive = true
 
-      this.#log(`client connected: ${client.id}`)
+      Log.debug(`client connected: ${client.id}`)
       this.send({ status: 'connected' })
 
       client.on('error', console.error);
-      client.on('close', event => this.#log(`client disconnected: ${client.id}`))
-      client.on('message', data => this.#log(`< ${client.id} ${data.toString()}`))
+      client.on('close', event => Log.debug(`client disconnected: ${client.id}`))
+      client.on('message', data => Log.debug(`< ${client.id} ${data.toString()}`))
       client.on('pong', () => {
-        this.#log(`client pong received: ${client.id}`)
+        Log.debug(`client pong received: ${client.id}`)
         client.isAlive = true
       })
     })
@@ -38,11 +39,11 @@ export class WsServer {
     this.#interval = setInterval(() => {
       this.#wss.clients.forEach(client => {
         if (client.isAlive === false) {
-          this.#log(`client did not respond to ping: ${client.id}`)
+          Log.debug(`client did not respond to ping: ${client.id}`)
           return client.terminate()
         }
 
-        this.#log(`pinging client: ${client.id}`)
+        Log.debug(`pinging client: ${client.id}`)
         client.isAlive = false
         client.ping()
       })
@@ -55,16 +56,12 @@ export class WsServer {
 
   send(data) {
     const payload = JSON.stringify(data)
-    this.#log('>', payload)
+    Log.debug('>', payload)
 
     this.#wss.clients.forEach(client => {
       if (client.readyState === WebSocket.OPEN) {
         client.send(`${payload}`)
       }
     })
-  }
-
-  #log(...str) {
-    if (this.#config.logging) console.log(...str)
   }
 }
