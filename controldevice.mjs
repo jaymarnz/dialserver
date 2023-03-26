@@ -52,8 +52,7 @@ export class ControlDevice {
       }
       */
     } catch (error) {
-      Log.debug('error opening ControlDevice:')
-      Log.debug(error)
+      console.error('error opening ControlDevice:', error)
     }
   }
 
@@ -76,8 +75,7 @@ export class ControlDevice {
       if (this.#dev && this.#config.buzz)
         this.#dev.write([0x01, repeatCount & 0xff, 0x03, 0x00, 0x00])
     } catch (error) {
-      Log.debug('error writing to ControlDevice:')
-      Log.debug(error)
+      console.error('error writing to ControlDevice:', error)
     }
   }
 }

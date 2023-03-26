@@ -132,4 +132,4 @@ The only issue I'm aware of is the Surface Dial goes to sleep after about 5 mins
 ## Roadmap
 1. I'd like to figure out how to keep the Surface Dial awake for longer. Perhaps this can be done by via the Surface Dial's Control endpoint. If anyone has experience with this, I'd appreciate hearing about it.
 
-2. I use this Web Socket server with my BluView web app to display and control a Bluesound NODE. It works great but I'd like to experiment with using the Web Bluetooth api to see if I can interface BluView directly and eliminate it's need for this Web Socket server. See that repository if you are interested or have information to share about using Web Bluetooth with a Surface Dial.
+2. I use this Web Socket server with my BluView web app to display and control a Bluesound NODE. It works great but I'd like to experiment with using the Web Bluetooth api to see if I can interface BluView directly and eliminate its need for this Web Socket server. See that repository if you are interested or have information to share about using Web Bluetooth with a Surface Dial.

@@ -13,12 +13,6 @@ const EventType = {
   EV_MSC: 4
 }
 
-const SurfaceDevice = {
-  NONE: 0,
-  MULTI_AXIS: 1,
-  CONTROL: 2
-}
-
 export class DialServer {
   #config
   #wsServer
@@ -32,68 +26,50 @@ export class DialServer {
     this.#wsServer = new WsServer(this.#config)
   }
 
+  // main processing loop
   async run() {
-    // get the ball rolling right away if the device is already connected
+    await this.#startup()
+    await this.#monitor()
+  }
+
+  // see if the devices are already connected
+  async #startup() {
     let devices = {}
 
     for (const device of udev.list('input')) {
-      switch (this.#isSurfaceDial(device)) {
-        case SurfaceDevice.CONTROL: {
+      switch (DialDevice.isSurfaceDial(device)) {
+        case DialDevice.DeviceType.CONTROL: {
           devices.control = device.DEVNAME
           break
         }
-        case SurfaceDevice.MULTI_AXIS: {
+        case DialDevice.DeviceType.MULTI_AXIS: {
           devices.multiAxis = device.DEVNAME
           break
         }
       }
     }
 
-    await Promise.allSettled([
+    // get the ball rolling right away if the devices are already connected
+    return Promise.allSettled([
       devices.control ? this.#startDeviceControl(devices.control) : Promise.resolve(),
       devices.multiAxis ? this.#processDeviceInput(devices.multiAxis) : Promise.resolve()
     ])
+  }
 
-    // monitor for the Surface Dial to connect
+  // start monitoring for the Surface Dial to connect
+  async #monitor() {
     udev.monitor('input').on('add', async (device) => {
-      switch (this.#isSurfaceDial(device)) {
-        case SurfaceDevice.CONTROL: {
+      switch (DialDevice.isSurfaceDial(device)) {
+        case DialDevice.DeviceType.CONTROL: {
           await this.#startDeviceControl(device.DEVNAME)
           break
         }
-        case SurfaceDevice.MULTI_AXIS: {
+        case DialDevice.DeviceType.MULTI_AXIS: {
           await this.#processDeviceInput(device.DEVNAME)
           break
         }
       }
     })
-  }
-
-  // is this device the Surface Dial? Return a SurfaceDevice value
-  #isSurfaceDial(device) {
-    try {
-      const parent = udev.getNodeParentBySyspath(device.syspath)
-
-      if (parent && parent.NAME === '"Surface Dial System Multi Axis"') {
-        Log.verbose('found multi-axis device: ', device.DEVNAME)
-        return SurfaceDevice.MULTI_AXIS
-      }
-      else if (parent && parent.NAME === '"Surface Dial System Control"') {
-        Log.verbose('found control device: ', device.DEVNAME)
-        return SurfaceDevice.CONTROL
-      }
-      else
-        return SurfaceDevice.NONE
-    } catch (error) {
-      // I'm not sure yet why but udev sometimes throws "device not found" for this syspath
-      // Probably a timing thing but once I figure it out I can make this function static
-      // again when the logging is removed.
-      Log.debug('isSurfaceDial error')
-      Log.debug(error)
-      Log.debug('device:', device)
-    }
-
-    return false
   }
 
   // process input from the device
@@ -122,42 +98,27 @@ export class DialServer {
       if (error.code === 'ENODEV') { // this is the expected error when it disconnects
         Log.debug('device has disconnected')
       } else {
-        Log.debug('error reading events:')
-        Log.debug(error)
+        console.error('error reading events:', error)
       }
     }
 
-    // close the devices if they are open
-    try {
-      if (this.#dialDevice) {
-        await this.#dialDevice.close()
-        this.#dialDevice = undefined
-      }
-      if (this.#controlDevice) {
-        await this.#controlDevice.close()
-        this.#controlDevice = undefined
-      }
-    } catch (error) {
-      Log.debug('error closing dialDevice:')
-      Log.debug(error)
-    }
+    await this.#closeDevices()
   }
 
   // don't send every rotation. rather, aggregate them and send periodically
   #aggregateRotation(value) {
     this.#aggregate += value
 
-    if (!this.#aggregateTimer) {
-      this.#aggregateTimer = setTimeout(() => {
-        this.#aggregateTimer = undefined
-        let degrees = this.#aggregate / 10.0 // this expects the dial is set to its default 3600 steps
-        this.#aggregate = 0
-        if (Math.abs(degrees) >= this.#config.minDegrees)
-          this.#wsServer.send({ degrees })
-      }, this.#config.aggregationTime)
-    }
+    this.#aggregateTimer = this.#aggregateTimer || setTimeout(() => {
+      const degrees = this.#aggregate / 10.0 // this expects the dial is set to its default 3600 steps
+      this.#aggregateTimer = undefined
+      this.#aggregate = 0
+      if (Math.abs(degrees) >= this.#config.minDegrees)
+        this.#wsServer.send({ degrees })
+    }, this.#config.aggregationTime)
   }
 
+  // send haptic feedback when connected
   async #startDeviceControl(devname) {
     Log.debug('control hid is connected:', devname)
 
@@ -166,12 +127,28 @@ export class DialServer {
       await this.#controlDevice.open()
       await this.#controlDevice.buzz(this.#config.buzzRepeatCountConnect)
     } catch (error) {
-      if (error.code === 'ENODEV') { // this is the expected error when it disconnects
-        Log.debug('control has disconnected')
-      } else {
-        Log.debug('error from control:')
-        Log.debug(error)
+      console.error('error from control device:', error)
+    }
+  }
+
+  // close the devices if they are open
+  async #closeDevices() {
+    try {
+      if (this.#dialDevice) {
+        await this.#dialDevice.close()
+        this.#dialDevice = undefined
       }
+    } catch (error) {
+      console.error('error closing dialDevice:', error)
+    }
+
+    try {
+      if (this.#controlDevice) {
+        await this.#controlDevice.close()
+        this.#controlDevice = undefined
+      }
+    } catch (error) {
+      console.error('error closing controlDevice:', error)
     }
   }
 }

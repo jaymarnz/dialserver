@@ -1,3 +1,4 @@
+import udev from 'udev'
 import { Buffer } from 'node:buffer'
 import { open } from 'node:fs/promises'
 import { Portable } from './portable.mjs'
@@ -9,6 +10,12 @@ export class DialDevice {
   #bufferSize
   #buf
   #fd
+
+  static DeviceType = {
+    NONE: 0,
+    MULTI_AXIS: 1,
+    CONTROL: 2
+  }
 
   constructor(devname, config = {}) {
     this.#devname = devname
@@ -54,15 +61,26 @@ export class DialDevice {
     return event
   }
 
-  readUInt32or64(buffer, offset) {
-    return buffer.readBigUInt64LE(offset)
-  }
+  // is this device the Surface Dial? Return a SurfaceDevice value
+  static isSurfaceDial(device) {
+    try {
+      const parent = udev.getNodeParentBySyspath(device.syspath)
 
-  readUInt16(buffer, offset) {
-    return buffer.readUInt16LE(offset)
-  }
+      if (parent && parent.NAME === '"Surface Dial System Multi Axis"') {
+        Log.verbose('found multi-axis device: ', device.DEVNAME)
+        return this.DeviceType.MULTI_AXIS
+      }
+      else if (parent && parent.NAME === '"Surface Dial System Control"') {
+        Log.verbose('found control device: ', device.DEVNAME)
+        return this.DeviceType.CONTROL
+      }
+      else
+        return this.DeviceType.NONE
+    } catch (error) {
+      console.error('isSurfaceDial error:', error)
+      Log.debug('device:', device)
+    }
 
-  readInt32(buffer, offset) {
-    return buffer.readInt32LE(offset)
+    return false
   }
 }
