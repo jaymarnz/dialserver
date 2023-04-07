@@ -40,7 +40,7 @@ export class DialDevice {
   }
 
   async read() {
-    Log.verbose('DialDevice read')
+    // Log.verbose('DialDevice read')
     const result = await this.#fd.read(this.#buf, { length: this.#bufferSize })
 
     const event = Portable.is64Bit() ? {
@@ -57,7 +57,7 @@ export class DialDevice {
       value: new Portable(result.buffer).readInt32(12)
     }
 
-    Log.verbose('DialDevice:', event)
+    // Log.verbose('DialDevice:', event)
     return event
   }
 

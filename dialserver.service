@@ -4,7 +4,7 @@
 
  [Service]
  Type=idle
- ExecStart=/usr/bin/node /opt/dialserver/main.mjs {HANDLER-NAME}
+ ExecStart=/usr/bin/node /opt/dialserver/main.mjs
 
  [Install]
  WantedBy=multi-user.target

@@ -38,7 +38,7 @@ const argv = yargs(hideBin(process.argv))
     alias: 'buzz',
     describe: 'enable buzz on wake-up',
     type: 'boolean',
-    default: true
+    default: false
   })
   .option('p', {
     alias: 'port',
