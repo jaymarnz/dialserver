@@ -2,7 +2,7 @@
 import os from 'os'
 
 export class Portable {
-  #isLE = os.endianness() == 'LE'
+  #isLE = os.endianness() === 'LE'
   #buffer
 
   constructor(buffer) {

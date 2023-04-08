@@ -84,12 +84,20 @@ export class DialServer {
       while (true) {
         const event = await this.#dialDevice.read()
 
+        // after every read, update the features because for some reason on buster they get reset
+        // whenever the device reconnects - this is ugly and I want to find a better solution!
+        // this isn't necessary on bullseye and bookworm
+        if (this.#controlDevice && this.#config.sendFeatures)
+          this.#controlDevice.setFeatures()
+
         // aggregate rotation but immediately process clicks
         switch (event.type) {
           case EventType.EV_KEY:
+            // Log.verbose('EV_KEY:', event.value)
             this.#wsServer.send({ button: event.value ? 'down' : 'up' })
             break
           case EventType.EV_REL:
+            // Log.verbose('EV_REL:', event.value)
             this.#aggregateRotation(event.value)
             break
         }
@@ -120,8 +128,11 @@ export class DialServer {
 
   // send haptic feedback when connected
   async #startDeviceControl(devname) {
-    Log.debug('control hid is connected:', devname)
+    // don't bother if we're not configured for haptic feedback
+    // this also allows us to run as a normal user or without udev permissions
 
+    // if (this.#config.buzz) {
+    Log.debug('control hid is connected:', devname)
     try {
       this.#controlDevice = new ControlDevice(devname, this.#config)
       await this.#controlDevice.open()
@@ -129,6 +140,7 @@ export class DialServer {
     } catch (error) {
       console.error('error from control device:', error)
     }
+    // }
   }
 
   // close the devices if they are open

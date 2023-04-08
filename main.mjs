@@ -1,4 +1,5 @@
 import yargs from 'yargs'
+import Os from 'os'
 import { hideBin } from 'yargs/helpers'
 import { DialServer } from './dialserver.mjs'
 import { HtmlServer } from './htmlserver.mjs'
@@ -8,6 +9,7 @@ import { Log } from './log.mjs'
 const defaultConfig = {
   debug: false,
   verbose: false,
+  sendFeatures: false,
   keepaliveTime: 30000, // if changed then client must also be changed
   wsPort: 3000,
   htmlPort: 3080,
@@ -25,20 +27,27 @@ const argv = yargs(hideBin(process.argv))
   .alias('h', 'help')
   .option('d', {
     alias: 'debug',
-    describe: 'enable debug logging',
+    describe: 'Enable debug logging',
     type: 'boolean',
     default: false
   })
   .option('verbose', {
-    describe: 'enable verbose logging',
+    describe: 'Enable verbose logging',
     type: 'boolean',
     default: false
   })
   .option('b', {
     alias: 'buzz',
-    describe: 'enable buzz on wake-up',
+    describe: 'Enable buzz on wake-up',
     type: 'boolean',
     default: false
+  })
+  .option('f', {
+    alias: 'features',
+    describe: 'Send feature reports',
+    type: 'boolean',
+    // default to true if we're running on Buster only
+    default: Os.platform() === 'linux' && Os.release().split('.')[0] === '5' && Os.release().split('.')[1] === '10'
   })
   .option('p', {
     alias: 'port',
@@ -61,7 +70,8 @@ const config = {
     verbose: argv.verbose,
     wsPort: argv.port,
     htmlPort: argv.web,
-    buzz: argv.buzz
+    buzz: argv.buzz,
+    sendFeatures: argv.features
   }
 }
 
