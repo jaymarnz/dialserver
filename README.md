@@ -6,8 +6,6 @@ It's intended to be used to feed a volume controller for network streamers or ot
 It is designed to run on pretty-much any Linux box. I'm currently using it on a Raspberry Pi and the installation instructions are for that OS but should either work or be easily adapted to others.
 
 ## Operating system choices
-The code is designed to be portable between 32/64 bit and big or little endian.
-
 At the present time to get the best performance I recommend running it on Raspberry Pi OS Legacy (Buster).
 
 ## Usage

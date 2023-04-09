@@ -27,9 +27,9 @@ export class WsServer {
 
       client.on('error', console.error);
       client.on('close', event => Log.debug(`client disconnected: ${client.id}`))
-      client.on('message', data => Log.debug(`< ${client.id} ${data.toString()}`))
+      client.on('message', data => Log.verbose(`< ${client.id} ${data.toString()}`))
       client.on('pong', () => {
-        Log.debug(`client pong received: ${client.id}`)
+        Log.verbose(`client pong received: ${client.id}`)
         client.isAlive = true
       })
     })
@@ -43,7 +43,7 @@ export class WsServer {
           return client.terminate()
         }
 
-        Log.debug(`pinging client: ${client.id}`)
+        Log.verbose(`pinging client: ${client.id}`)
         client.isAlive = false
         client.ping()
       })
