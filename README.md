@@ -1,5 +1,4 @@
-# DialServer  
-## WebSocket interface for Surface Dial
+# DialServer - WebSocket interface for Surface Dial
 
 This is a Web Socket server that provides a continous stream of decoded events from a Microsoft Surface Dial.
 
