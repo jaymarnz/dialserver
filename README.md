@@ -119,7 +119,7 @@ You only need to do this once to pair your RPi with the Surface Dial. After it h
     [bluetooth]# trust XX:XX:XX:XX:XX:XX
     ```
 
-## Configure and install DialServer
+## Install DialServer
 1. Download the contents of this repository to a directory (eg. `~/dialserver`):
     ```
     git clone https://github.com/jaymarnz/dialserver.git
@@ -131,7 +131,7 @@ You only need to do this once to pair your RPi with the Surface Dial. After it h
     $ npm install
     ````
 
-3. To keep it running all the time you can install it as a service. The install script copies the files to /opt/dialserver and uses systemctl to create, enable and start the dialserver service:
+3. To keep it running all the time you can run it as a service. The install script copies the files to /opt/dialserver and uses systemctl to create, enable and start the dialserver service:
     ````
     $ chmod +x install.sh
     $ sudo ./install.sh
@@ -140,7 +140,7 @@ You only need to do this once to pair your RPi with the Surface Dial. After it h
 4. You can also run it directly using the options shown above. If you've already started it as a service then you'll need to stop it first:
     ````
     $ sudo systemctl stop dialserver
-    $ node main.mjs [options]
+    $ sudo node main.mjs [options]
     ````
 ## Web socket messages
 See `index.html` for an example of connecting and viewing the web socket messages. All messages are in JSON format. Examples:
@@ -152,7 +152,7 @@ See `index.html` for an example of connecting and viewing the web socket message
 ````
 
 ## Issues
-### ***Falls asleep way too fast - Raspberry Pi OS Bullseye only***
+### ***Raspberry Pi OS Bullseye only***
 The only issue I'm aware of is the Surface Dial goes to sleep after about 5 mins of inactivity. When running on Raspberry Pi OS Bullseye this is super annoying because there are several seconds delay when it wakes up and reconnects. But I've found when running on Raspberry Pi OS Buster it reconnects nearly instantly. So for now, I recommend sticking with Buster. The Buster legacy OS is available through the Raspberry Pi Imager using the `Raspberry Pi OS (Other)` menu and at https://www.raspberrypi.com/software/operating-systems/#raspberry-pi-os-legacy.
 
 If you do want to run on Bullseye, you'll need to wake up the Surface Dial by pressing the button or turning it and then waiting a few seconds for it come fully awake. At that point it will work as expected until its idle timeout kicks in again. Because of the delay during reconnection and to improve the UX, DialServer can optionally use the Surface Dial's haptic feedback to indicate when it is awake and ready to handle gestures. Use the `--buzz` option to enable this. When running as a service, edit the `dialserver.service` file to add that option to the command line and re-install using `sudo ./install.sh`
