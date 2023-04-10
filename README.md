@@ -1,16 +1,22 @@
 # DialServer - WebSocket interface for Surface Dial
+This is a Web Socket server that provides a continous stream of decoded events from a Microsoft Surface Dial. It's intended to be used to feed a volume controller for network streamers or other network connected audio devices. In particular it works with my [BluView app to control volume and playback on a BlueOS device like a BlueSound NODE](https://github.com/jaymarnz/bluview).
 
-This is a Web Socket server that provides a continous stream of decoded events from a Microsoft Surface Dial.
+It is designed to run on pretty-much any Linux box. I'm currently using it on a Raspberry Pi and the installation instructions are for that OS but it should also work or be easily adapted to others.
 
-It's intended to be used to feed a volume controller for network streamers or other network connected audio devices. In particular it works with my [BluView app to control volume and playback on a BlueOS device like a BlueSound NODE](https://github.com/jaymarnz/bluview).
-
-It is designed to run on pretty-much any Linux box. I'm currently using it on a Raspberry Pi and the installation instructions are for that OS but should either work or be easily adapted to others.
+## Example web socket messages
+See `index.html` for an example of connecting and viewing the web socket messages. All messages are in JSON format. Examples:
+````
+{ "button" : "down" }
+{ "button" : "up" }
+{ "degrees" : 3.1 }
+{ "degrees" : -5.3 }
+````
 
 ## Operating system choices
 At the present time to get the best performance I recommend running it on Raspberry Pi OS Legacy (Buster).
 
 ## Usage
-The preferred method is to install it as a service so it is always running. See the installation section. However, for testing and development you can run it directly:
+The preferred method is to install it as a service so it's always running. See the installation section. However, for testing and development you can run it directly:
 ```
 $ node main.mjs [options]
 ```
@@ -27,13 +33,14 @@ Options:
 <tr><td>-h</td><td>--help</td><td>Show help</td><td></td>
 </table>
 
-It creates both a web server and a web-socket server. The web server is just used for testing and spying on the output. Connect to it with your browser and it only serves a single page that displays data coming from the web-socket. You can disable this with `--web=0`. Note: By default the web server is disabled when installed and run as as service and enabled when run from the command line.
+It creates both a web server and a web-socket server. The web server is just used for testing and spying on the output. Connect to it with your browser and it only serves a single page that displays data coming from the web-socket. See [index.html](https://github.com/jaymarnz/dialserver/blob/master/index.html) for an example. You can disable the web server with `--web=0`. By default the web server is disabled when installed and run as as service and enabled when run from the command line.
 
 In order to support Raspberry Pi OS based on Buster the `--features` option has been introduced. For Bullseye (not recommended) or Bookworm based systems it is not necessary and so the default value (true or false) is determined based on this. Consequently, you should not need to specify this option but can override it with `--features` or `--no-features`. When enabled a feature report is sent to the Surface Dial at appropriate times. This overcomes a bug in Buster that resets the number of dial steps whenever the Surface Dial reconnects.
 
 The Surface Dial's haptic feedback is optional to let you know when it wakes up and is ready to handle gestures. You can enable this with `--buzz`. When running on Bullseye this is very helpful since it takes several seconds to reconnect. On Buster reconnections happen in about 0.2 seconds or less so it's not necessary and that's why I recommend running on Buster.
 
-If buzz or features is enabled you must run DialServer as root which the install does for you. But if you want to run from non-root and need either of these options then you must create a udev rule based on the vendorId and productId. The Microsoft Surface Dial vendorId is 0x045e and the productId is 0x091b. See https://github.com/node-hid/node-hid#udev-device-permissions for an example.
+## Running as root
+You must run DialServer as root which the install does for you. But if you want to run from non-root then you must create a udev rule based on the vendorId and productId. The Microsoft Surface Dial vendorId is 0x045e and the productId is 0x091b. See https://github.com/node-hid/node-hid#udev-device-permissions for an example.
 
 ## Installation
 I've tested this on an RPi running both 32 bit and 64 bit Raspberry PI OS but it should work, or be easily adapted, to most any Linux.
@@ -47,7 +54,7 @@ Linux rpi 5.10.103-v7l+ #1529 SMP Tue Mar 8 12:24:00 GMT 2022 armv7l GNU/Linux
 ````
 
 ### Installation Steps ###
-1. Create an image using the Raspberry Pi Imager and boot it on your RPi. I use Raspberry PI Debian **Buster** OS (32-bit) without a desktop environment and SSH for all the rest of the steps.
+1. Create an image using the Raspberry Pi Imager and boot it on your RPi. I use **Legacy Raspberry PI Debian Buster OS (32-bit)** without a desktop environment and use SSH for all the rest of the steps.
 
     ***Important:*** See the issues section below if you intend to install on Raspberry Pi OS based on Bullseye. I currently don't recommend using Bullseye.
 
@@ -71,13 +78,13 @@ Linux rpi 5.10.103-v7l+ #1529 SMP Tue Mar 8 12:24:00 GMT 2022 armv7l GNU/Linux
     $ node -v
     ```
 
-    You may also have to install NPM separately if `npm -v` says its not found:
+    You may also have to install NPM separately if `npm -v` says it's not found:
      ```
     $ sudo apt install npm
     $ npm -v
     ```   
 
-5. Install additional development tools to support NPM modules that require compilation. These were already installed on my RPi distribution but you might need them if you use another.
+5. Install additional development tools to support NPM modules that require compilation. Some of these were already installed on my RPi distribution.
     ```
     $ sudo apt install build-essential libusb-1.0-0 libusb-1.0-0-dev libudev-dev
     ```
@@ -143,14 +150,6 @@ You only need to do this once to pair your RPi with the Surface Dial. After it h
     $ sudo systemctl stop dialserver
     $ sudo node main.mjs [options]
     ````
-## Web socket messages
-See `index.html` for an example of connecting and viewing the web socket messages. All messages are in JSON format. Examples:
-````
-{ "button" : "down" }
-{ "button" : "up" }
-{ "degrees" : 3.1 }
-{ "degrees" : -5.3 }
-````
 
 ## Issues
 ### ***Raspberry Pi OS Bullseye only***
