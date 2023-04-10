@@ -2,7 +2,7 @@
 
 This is a Web Socket server that provides a continous stream of decoded events from a Microsoft Surface Dial.
 
-It's intended to be used to feed a volume controller for network streamers or other network connected audio devices. In particular it works with my BluView app to control volume and playback on a BlueOS device like a BlueSound NODE.
+It's intended to be used to feed a volume controller for network streamers or other network connected audio devices. In particular it works with my [BluView app to control volume and playback on a BlueOS device like a BlueSound NODE](https://github.com/jaymarnz/bluview).
 
 It is designed to run on pretty-much any Linux box. I'm currently using it on a Raspberry Pi and the installation instructions are for that OS but should either work or be easily adapted to others.
 
