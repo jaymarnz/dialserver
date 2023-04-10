@@ -1,4 +1,6 @@
-# DialServer - WebSocket interface for Microsoft Surface Dial
+# DialServer  
+## WebSocket interface for Surface Dial
+
 This is a Web Socket server that provides a continous stream of decoded events from a Microsoft Surface Dial.
 
 It's intended to be used to feed a volume controller for network streamers or other network connected audio devices. In particular it works with my BluView app to control volume and playback on a BlueOS device like a BlueSound NODE.
