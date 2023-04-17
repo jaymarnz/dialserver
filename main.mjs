@@ -19,6 +19,12 @@ const defaultConfig = {
   buzzRepeatCountConnect: 4 // controls the "feel" on device wake-up
 }
 
+const system = {
+  platform: Os.platform(),
+  major: Os.release().split('.')[0],
+  minor: Os.release().split('.')[1]
+}
+
 const argv = yargs(hideBin(process.argv))
   .strictOptions()
   .usage('Usage: $0 [options]')
@@ -47,7 +53,7 @@ const argv = yargs(hideBin(process.argv))
     describe: 'Send feature reports',
     type: 'boolean',
     // default to true if we're running on Buster only
-    default: Os.platform() === 'linux' && Os.release().split('.')[0] === '5' && Os.release().split('.')[1] === '10'
+    default: system.platform === 'linux' && system.major === '5' && system.minor === '10'
   })
   .option('p', {
     alias: 'port',

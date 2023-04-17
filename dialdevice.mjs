@@ -1,3 +1,4 @@
+import udev from 'udev'
 import HID from 'node-hid'
 import { Log } from './log.mjs'
 
@@ -5,6 +6,11 @@ import { Log } from './log.mjs'
 // the HID device via a udev rule for the device based on the vendorId and productId
 //
 // https://github.com/node-hid/node-hid#udev-device-permissions
+
+export const SurfaceDial = {
+  vid: 0x045e,
+  pid: 0x091b
+}
 
 export const EventType = {
   BUTTON: 1,
@@ -29,20 +35,43 @@ export class DialDevice {
   #featInterval
   #buttonDown
 
+  // is the SurfaceDial known to HID?
+  static isPresent() {
+    return HID.devices(SurfaceDial.vid, SurfaceDial.pid).length !== 0
+  }
+
+  // is a device the Surface Dial? Return a SurfaceDevice value
+  static isSurfaceDial(device) {
+    try {
+      const parent = udev.getNodeParentBySyspath(device.syspath)
+
+      if (parent && parent.NAME === '"Surface Dial System Multi Axis"') {
+        Log.verbose('found multi-axis device: ', device.DEVNAME)
+        return DeviceType.MULTI_AXIS
+      }
+      else if (parent && parent.NAME === '"Surface Dial System Control"') {
+        Log.verbose('found control device: ', device.DEVNAME)
+        return DeviceType.CONTROL
+      }
+      else
+        return DeviceType.NONE
+    } catch (error) {
+      Log.verbose('isSurfaceDial - udev.getNodeParentBySyspath error:', error)
+      Log.verbose('device:', device)
+    }
+
+    return false
+  }
+
   constructor(config = {}) {
     this.#config = config
     Log.verbose('DialDevice constructor')
 
-    try {
-      this.#dev = new HID.HID(0x045e, 0x091b)
-      this.#dev.on('error', (error) => { throw new Error(error) })
+    this.#dev = new HID.HID(SurfaceDial.vid, SurfaceDial.pid)
+    this.#dev.on('error', (error) => { throw new Error(error) })
 
-      if (this.#config.verbose)
-        this.#featInterval = setInterval(() => this.#getFeatureReport(), 30 * 1000)
-    } catch (error) {
-      console.error('error opening DialDevice:', error)
-      throw error
-    }
+    if (this.#config.verbose)
+      this.#featInterval = setInterval(() => this.#getFeatureReport(), 30 * 1000)
   }
 
   close() {
@@ -171,10 +200,7 @@ export class DialDevice {
     if (data[0] === 0x01 && data.length >= 4) {
       const value = data.readInt16LE(2)
       if (value) {
-        event = {
-          type: EventType.ROTATE,
-          value: data.readInt16LE(2)
-        }
+        event = { type: EventType.ROTATE, value }
       }
       else if (data[1] & 0x01) {
         event = {

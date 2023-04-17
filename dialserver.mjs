@@ -1,3 +1,4 @@
+import udev from 'udev'
 import { DialDevice, DeviceType, EventType, Button } from './dialdevice.mjs'
 import { WsServer } from './wsserver.mjs';
 import { Log } from './log.mjs'
@@ -5,8 +6,11 @@ import { Log } from './log.mjs'
 export class DialServer {
   #config
   #wsServer
-  #aggregate = 0
   #aggregateTimer
+  #monitor
+  #aggregate = 0
+  #baseDelayMs = 25
+  #maxDelayMs = 60 * 1000
 
   constructor(config) {
     this.#config = config
@@ -15,13 +19,47 @@ export class DialServer {
 
   // main processing loop
   async run() {
+    const retries = 0
+
     while (true) {
-      try {
-        await this.#processDeviceInput()
-      } catch (error) {
-        console.error('error in run loop:', error)
-      }
+      if (!DialDevice.isPresent())
+        await this.#waitForDevice()
+
+      await this.#processDeviceInput()
+
+      // processDeviceInput shouldn't ever return but just in case, let's wait a bit before
+      // trying again which also prevents filling /var/log/syslog
+      const delayMs = Math.min(Math.pow(2, retries++) * this.#baseDelayMs, this.#maxDelayMs)
+      Log.debug(`processDeviceInput has returned - will wait ${delayMs} msec before trying again`)
+      await new Promise(resolve => setTimeout(resolve, delayMs))
     }
+  }
+
+  // start monitoring for the Surface Dial
+  async #waitForDevice() {
+    Log.debug('Waiting for DialDevice to connect')
+    const devices = []
+
+    return new Promise(resolve => {
+      // don't create the udev.monitor here (eg. const monitor = udev.monitor(...)) because
+      // it will go out of scope and that will close the monitor but I won't have control over
+      // when that happens and it will abort if I've already closed it. This way, I can determine
+      // when I want to close the monitor
+      this.#monitor = udev.monitor('input')
+      this.#monitor.on('add', async (device) => {
+        const deviceType = DialDevice.isSurfaceDial(device)
+
+        // when we've discovered both devices, we're connected!
+        if (deviceType !== DeviceType.NONE) {
+          devices[deviceType] = true
+          if (devices[DeviceType.MULTI_AXIS] && devices[DeviceType.CONTROL]) {
+            Log.debug('DialDevice has connected')
+            this.#monitor.close()
+            resolve()
+          }
+        }
+      })
+    })
   }
 
   // process input from the device

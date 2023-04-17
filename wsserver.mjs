@@ -23,7 +23,6 @@ export class WsServer {
       client.isAlive = true
 
       Log.debug(`client connected: ${client.id}`)
-      this.send({ status: 'connected' })
 
       client.on('error', console.error);
       client.on('close', event => Log.debug(`client disconnected: ${client.id}`))
