@@ -1,8 +1,18 @@
 #!/bin/bash
-# create the target directory, copy files and set permissions
-[ ! -d "/opt/dialserver" ] && mkdir -m 755 /opt/dialserver
-cp -r * /opt/dialserver
+
+# determine the directory where this script is located
+DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# if /opt/dialserver/ exists, delete it (this also facilitates updating from npm to pnpm)
+[ -d /opt/dialserver ] && rm -rf /opt/dialserver
+
+# create the target directory, copy files (except node_modules) and set permissions
+mkdir -m 755 /opt/dialserver
+(cd $DIR; rsync -rt --exclude node_modules . /opt/dialserver)
 chmod 664 /opt/dialserver/*
+
+# install dependencies
+(cd /opt/dialserver; pnpm install)
 
 # if present delete the service file link
 [ -r /etc/systemd/system/dialserver.service ] && rm -f /etc/systemd/system/dialserver.service

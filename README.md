@@ -72,17 +72,15 @@ Linux rpi 5.10.103-v7l+ #1529 SMP Tue Mar 8 12:24:00 GMT 2022 armv7l GNU/Linux
     $ curl -fsSL https://deb.nodesource.com/setup_current.x | sudo -E bash -
     ```
 
-4. Install Node and verify version:
+4. Install Node and enable corepack since I use pnpm as the package manager:
     ```
     $ sudo apt install nodejs
-    $ node -v
-    ```
+    $ sudo corepack enable
 
-    You may also have to install NPM separately if `npm -v` says it's not found:
-     ```
-    $ sudo apt install npm
-    $ npm -v
-    ```   
+    $ node -v
+    $ pnpm -v
+
+    ``` 
 
 5. Install additional development tools to support NPM modules that require compilation. Some of these were already installed on my RPi distribution.
     ```
@@ -133,16 +131,14 @@ You only need to do this once to pair your RPi with the Surface Dial. After it h
     git clone https://github.com/jaymarnz/dialserver.git
     ```
 
-2. Install required Node packages:
+2. Install required Node packages (only necessary if you want to run it directly rather than installing it as a service in the next step):
     ````
-    $ cd dialserver
-    $ npm install
+    $ (cd ~/dialserver; pnpm install)
     ````
 
 3. To keep it running all the time you can run it as a service. The install script copies the files to /opt/dialserver and uses systemctl to create, enable and start the dialserver service:
     ````
-    $ chmod +x install.sh
-    $ sudo ./install.sh
+    $ sudo bash ~/dialserver/install.sh
     ````
 
 4. You can also run it directly using the options shown above. If you've already started it as a service then you'll need to stop it first:
