@@ -64,7 +64,12 @@ Linux rpi 5.10.103-v7l+ #1529 SMP Tue Mar 8 12:24:00 GMT 2022 armv7l GNU/Linux
     $ sudo apt upgrade
     ```
 
-3. Download the contents of this repository to a directory (eg. `~/dialserver`):
+3. Install additional development tools to support NPM modules that require compilation. Some of these were already installed on my RPi distribution.
+    ```
+    $ sudo apt install build-essential libusb-1.0-0 libusb-1.0-0-dev libudev-dev git
+    ```
+
+4. Download the contents of this repository to a directory (eg. `~/dialserver`):
     ```
     git clone https://github.com/jaymarnz/dialserver.git
     ```
@@ -88,11 +93,6 @@ Linux rpi 5.10.103-v7l+ #1529 SMP Tue Mar 8 12:24:00 GMT 2022 armv7l GNU/Linux
 6. Enable corepack since I use pnpm as the package manager:
     ```
     $ sudo corepack enable
-    ```
-
-6. Install additional development tools to support NPM modules that require compilation. Some of these were already installed on my RPi distribution.
-    ```
-    $ sudo apt install build-essential libusb-1.0-0 libusb-1.0-0-dev libudev-dev git
     ```
 
 ## Pairing the Microsoft Surface Dial
