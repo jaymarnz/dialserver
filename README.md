@@ -63,28 +63,36 @@ Linux rpi 5.10.103-v7l+ #1529 SMP Tue Mar 8 12:24:00 GMT 2022 armv7l GNU/Linux
     $ sudo apt update
     $ sudo apt upgrade
     ```
-3. Add Node repository:
+
+3. Download the contents of this repository to a directory (eg. `~/dialserver`):
+    ```
+    git clone https://github.com/jaymarnz/dialserver.git
+    ```
+
+5. Add Node repository and install Node (RPi Zero 2 W, RPi 3, RPi 4):
     ```
     $ curl -sL https://deb.nodesource.com/setup_16.x | sudo bash -
-    ```    
+    $ sudo apt install nodejs
+    ```
     I'm using v16 LTS but you can use the most recent version if you want:
     ```
     $ curl -fsSL https://deb.nodesource.com/setup_current.x | sudo -E bash -
-    ```
-
-4. Install Node and enable corepack since I use pnpm as the package manager:
-    ```
     $ sudo apt install nodejs
-    $ sudo corepack enable
-
-    $ node -v
-    $ pnpm -v
-
-    ``` 
-
-5. Install additional development tools to support NPM modules that require compilation. Some of these were already installed on my RPi distribution.
     ```
-    $ sudo apt install build-essential libusb-1.0-0 libusb-1.0-0-dev libudev-dev
+
+    For RPi Zero W (armv6) you can't use the above steps since Node has stopped officially supporting armv6. However, I've included a script to install Node v16.18.0 or you can easily update this script to install other versions:
+    ```
+    $ bash install-node-v16.18.0.sh
+    ```
+
+6. Enable corepack since I use pnpm as the package manager:
+    ```
+    $ sudo corepack enable
+    ```
+
+6. Install additional development tools to support NPM modules that require compilation. Some of these were already installed on my RPi distribution.
+    ```
+    $ sudo apt install build-essential libusb-1.0-0 libusb-1.0-0-dev libudev-dev git
     ```
 
 ## Pairing the Microsoft Surface Dial
@@ -126,22 +134,17 @@ You only need to do this once to pair your RPi with the Surface Dial. After it h
     ```
 
 ## Install DialServer
-1. Download the contents of this repository to a directory (eg. `~/dialserver`):
-    ```
-    git clone https://github.com/jaymarnz/dialserver.git
-    ```
-
-2. Install required Node packages (only necessary if you want to run it directly rather than installing it as a service in the next step):
+1. Install required Node packages (only necessary if you want to run it directly rather than installing it as a service in the next step):
     ````
     $ (cd ~/dialserver; pnpm install)
     ````
 
-3. To keep it running all the time you can run it as a service. The install script copies the files to /opt/dialserver and uses systemctl to create, enable and start the dialserver service:
+2. To keep it running all the time you can run it as a service. The install script copies the files to /opt/dialserver and uses systemctl to create, enable and start the dialserver service:
     ````
     $ sudo bash ~/dialserver/install.sh
     ````
 
-4. You can also run it directly using the options shown above. If you've already started it as a service then you'll need to stop it first:
+3. You can also run it directly using the options shown above. If you've already started it as a service then you'll need to stop it first:
     ````
     $ sudo systemctl stop dialserver
     $ sudo node main.mjs [options]
