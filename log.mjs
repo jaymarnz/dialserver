@@ -1,3 +1,6 @@
+// Copyright 2023 jaymarnz, https://github.com/jaymarnz
+// See LICENSE for details
+
 export class Log {
   static #debug = false;
   static #verbose = false;

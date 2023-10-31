@@ -1,3 +1,6 @@
+// Copyright 2023 jaymarnz, https://github.com/jaymarnz
+// See LICENSE for details
+
 import udev from 'udev'
 import { DialDevice, DeviceType, EventType, Button } from './dialdevice.mjs'
 import { WsServer } from './wsserver.mjs';

@@ -1,3 +1,6 @@
+// Copyright 2023 jaymarnz, https://github.com/jaymarnz
+// See LICENSE for details
+
 import yargs from 'yargs'
 import Os from 'os'
 import { hideBin } from 'yargs/helpers'
