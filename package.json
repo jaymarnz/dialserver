@@ -1,6 +1,6 @@
 {
   "name": "dialserver",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Websocket interface for Microsoft Surface Dial",
   "author": "jaymarnz",
   "main": "main.mjs",
