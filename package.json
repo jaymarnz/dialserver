@@ -5,7 +5,7 @@
   "author": "jaymarnz",
   "main": "main.mjs",
   "type": "module",
-  "license": "ISC",
+  "license": "GPL-3.0",
   "engines": {
     "node": ">=16",
     "pnpm": ">=8"
