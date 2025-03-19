@@ -152,17 +152,17 @@ export class DialDevice {
     // Don't change the default number of steps from 3600 or else the aggregation and bluview won't work well
     const features = [0x01, this.#config.dialSteps & 0xff, (this.#config.dialSteps >> 8) & 0xff, 0x00, 0x01, 0x00, 0x00, 0x00]
 
-    try {
-      // sendFeatureReport is synchronous - so use a 50ms timeout to queue it but this also debounces it
-      clearTimeout(this.#featTimeout)
-      this.#featTimeout = setTimeout(() => {
+    // sendFeatureReport is synchronous - so use a 50ms timeout to queue it but this also debounces it
+    clearTimeout(this.#featTimeout)
+    this.#featTimeout = setTimeout(() => {
+      try {
         Log.verbose('sendFeatureReport:', this.#hexString(features))
         this.#dev.sendFeatureReport(features)
-      }, 50)
-    } catch (error) {
-      console.error('error sending feature report:', error)
-      return false
-    }
+      } catch (error) {
+        console.error('error sending feature report:', error)
+        return false
+      }
+    }, 50)
 
     return true
   }
