@@ -9,8 +9,8 @@ dependencies:
     specifier: ^4.21.2
     version: 4.21.2
   node-hid:
-    specifier: ^2.1.2
-    version: 2.1.2
+    specifier: ^2.2.0
+    version: 2.2.0
   udev:
     specifier: ^1.0.1
     version: 1.0.1
@@ -714,8 +714,8 @@ packages:
       whatwg-url: 5.0.0
     dev: false
 
-  /node-hid@2.1.2:
-    resolution: {integrity: sha512-qhCyQqrPpP93F/6Wc/xUR7L8mAJW0Z6R7HMQV8jCHHksAxNDe/4z4Un/H9CpLOT+5K39OPyt9tIQlavxWES3lg==}
+  /node-hid@2.2.0:
+    resolution: {integrity: sha512-vj48zh9j555DZzUhMc8tk/qw6xPFrDyPBH1ST1Z/hWaA/juBJw7IuSxPeOgpzNFNU36mGYj+THioRMt1xOdm/g==}
     engines: {node: '>=10'}
     hasBin: true
     requiresBuild: true
