@@ -1,7 +1,11 @@
 #!/bin/bash
 
+# usage: ./copy2device.sh [host]
+# default host name if not supplied: "dialserver"
+
 SOURCE_DIR="."
-DESTINATION="${USER}@dialserver:dialserver"
+HOST=${1:-dialserver}
+DESTINATION="${USER}@${HOST}:dialserver"
 
 EXCLUDE=(
   --exclude ".*"
