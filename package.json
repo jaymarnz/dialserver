@@ -7,15 +7,11 @@
   "type": "module",
   "license": "GPL-3.0",
   "engines": {
-    "node": ">=16",
-    "pnpm": ">=8"
-  },
-  "scripts": {
-    "preinstall": "npx only-allow pnpm"
+    "node": ">=16"
   },
   "dependencies": {
     "express": "^4.21.2",
-    "node-hid": "^2.2.0",
+    "node-hid": "^3.1.2",
     "udev": "^1.0.1",
     "ws": "^8.18.1",
     "yargs": "^17.7.2"
