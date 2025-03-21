@@ -13,7 +13,7 @@ See `index.html` for an example of connecting and viewing the web socket message
 ````
 
 ## Operating system choices
-At the present time to get the best performance I recommend running it on Raspberry Pi OS Legacy (Buster).
+At the present time to get the best performance I recommend running it on Raspberry Pi OS Legacy Buster.
 
 ## Usage
 The preferred method is to install it as a service so it's always running. See the installation section. However, for testing and development you can run it directly:
@@ -35,9 +35,9 @@ Options:
 
 It creates both a web server and a web-socket server. The web server is just used for testing and spying on the output. Connect to it with your browser and it only serves a single page that displays data coming from the web-socket. See [index.html](https://github.com/jaymarnz/dialserver/blob/master/index.html) for an example. You can disable the web server with `--web=0`. By default the web server is disabled when installed and run as as service and enabled when run from the command line.
 
-In order to support Raspberry Pi OS based on Buster the `--features` option has been introduced. For Bullseye (not recommended) or Bookworm based systems it is not necessary and so the default value (true or false) is determined based on this. Consequently, you should not need to specify this option but can override it with `--features` or `--no-features`. When enabled a feature report is sent to the Surface Dial at appropriate times. This overcomes a bug in Buster that resets the number of dial steps whenever the Surface Dial reconnects.
+In order to support Raspberry Pi OS based on Buster the `--features` option has been introduced. For Bullseye or Bookworm based systems it is not necessary and so the default value (true or false) is determined based on this. Consequently, you should not need to specify this option but can override it with `--features` or `--no-features`. When enabled a feature report is sent to the Surface Dial at appropriate times. This overcomes a bug in Buster that resets the number of dial steps whenever the Surface Dial reconnects.
 
-The Surface Dial's haptic feedback is optional to let you know when it wakes up and is ready to handle gestures. You can enable this with `--buzz`. When running on Bullseye this is very helpful since it takes several seconds to reconnect. On Buster reconnections happen in about 0.2 seconds or less so it's not necessary and that's why I recommend running on Buster.
+The Surface Dial's haptic feedback is optional to let you know when it wakes up and is ready to handle gestures. You can enable this with `--buzz`. When running on Bullseye this is very helpful since it takes several seconds to reconnect. On Buster reconnections happen in about 0.2 seconds or less so it's not necessary and that's why I recommend running on Buster. Bookworm seems to fall in the middle and is usable if you can tolerate about a 1 second delay after waking.
 
 ## Running as root
 You must run DialServer as root which the install does for you. But if you want to run from non-root then you must create a udev rule based on the vendorId and productId. The Microsoft Surface Dial vendorId is 0x045e and the productId is 0x091b. See https://github.com/node-hid/node-hid#udev-device-permissions for an example.
@@ -45,9 +45,9 @@ You must run DialServer as root which the install does for you. But if you want 
 ## Installation
 I've tested this on an RPi running both 32 bit and 64 bit Raspberry PI OS but it should work, or be easily adapted, to most any Linux.
 
-****IMPORTANT:**** I've discovered when using the latest Raspberry Pi OS (64-bit) (Debian Bullseye) there is a significant delay upon wake-up when the Surface goes to sleep after its been idle for 5 minutes. There is virtually no wake-up delay when running the legacy version of Raspberry Pi OS (32-bit) based on Debian Buster (released 2023-02-21).
+****IMPORTANT:**** I've discovered when using Raspberry Pi OS (64-bit) (Debian Bullseye) there is a significant delay upon wake-up when the Surface goes to sleep after its been idle for 5 minutes. There is virtually no wake-up delay when running the legacy version of Raspberry Pi OS (32-bit) based on Debian Buster (released 2023-02-21). I've also tried 64-bit Bookworm and the delay isn't as bad as Bullseye but still longer than Buster.
 
-This seems to be a driver issue and until it is fixed in the Bullseye version, I recommend using the Debian Buster version. I've verified that this version works well for me:
+This seems to be a driver issue and until it is fixed in the Bullseye or a later version, I recommend using the Debian Buster version. I've verified that this version works well for me:
 ````
 $ uname -a
 Linux rpi 5.10.103-v7l+ #1529 SMP Tue Mar 8 12:24:00 GMT 2022 armv7l GNU/Linux
@@ -56,41 +56,30 @@ Linux rpi 5.10.103-v7l+ #1529 SMP Tue Mar 8 12:24:00 GMT 2022 armv7l GNU/Linux
 ### Installation Steps ###
 1. Create an image using the Raspberry Pi Imager and boot it on your RPi. I use **Legacy Raspberry PI Debian Buster OS (32-bit)** without a desktop environment and use SSH for all the rest of the steps.
 
-    ***Important:*** See the issues section below if you intend to install on Raspberry Pi OS based on Bullseye. I currently don't recommend using Bullseye.
+    ***Important:*** See the issues section below if you intend to install on Raspberry Pi OS based on Bullseye or Bookworm. I currently don't recommend using Bullseye.
 
 2. Update the package list and all packages:
     ```
     $ sudo apt update
-    $ sudo apt upgrade
+    $ sudo apt full-upgrade
     ```
 
 3. Install additional development tools to support NPM modules that require compilation. Some of these were already installed on my RPi distribution.
     ```
-    $ sudo apt install build-essential libusb-1.0-0 libusb-1.0-0-dev libudev-dev git
+    $ sudo apt install build-essential libusb-1.0-0 libusb-1.0-0-dev libudev-dev git curl
     ```
 
-4. Download the contents of this repository to a directory (eg. `~/dialserver`):
+4. Add Node repository and install Node (RPi Zero 2 W, RPi 3, RPi 4):
     ```
-    git clone https://github.com/jaymarnz/dialserver.git
-    ```
-
-5. Add Node repository and install Node (RPi Zero 2 W, RPi 3, RPi 4):
-    ```
-    $ curl -sL https://deb.nodesource.com/setup_16.x | sudo bash -
+    $ curl -sL https://deb.nodesource.com/setup_lts.x | sudo bash -
     $ sudo apt install nodejs
     ```
-    I'm using v16 LTS but you can use the most recent version if you want:
-    ```
-    $ curl -fsSL https://deb.nodesource.com/setup_current.x | sudo -E bash -
-    $ sudo apt install nodejs
-    ```
-
     For RPi Zero W (armv6) you can't use the above steps since Node has stopped officially supporting armv6. However, I've included a script to install Node v16.18.0 or you can easily update this script to install other versions:
     ```
     $ bash install-node-v16.18.0.sh
     ```
 
-6. Enable corepack since I use pnpm as the package manager:
+5. Enable corepack since I use pnpm as the package manager:
     ```
     $ sudo corepack enable
     ```
@@ -134,27 +123,32 @@ You only need to do this once to pair your RPi with the Surface Dial. After it h
     ```
 
 ## Install DialServer
-1. Install required Node packages (only necessary if you want to run it directly rather than installing it as a service in the next step):
+1. Download the contents of this repository to a directory (eg. `~/dialserver`):
+    ```
+    git clone https://github.com/jaymarnz/dialserver.git
+    ```
+
+2. Install required Node packages (only necessary if you want to run it directly rather than installing it as a service in the next step):
     ````
-    $ (cd ~/dialserver; pnpm install)
+    $ (cd ~/dialserver; npm install)
     ````
 
-2. To keep it running all the time you can run it as a service. The install script copies the files to /opt/dialserver and uses systemctl to create, enable and start the dialserver service:
+3. To keep it running all the time you can run it as a service. The install script copies the files to /opt/dialserver and uses systemctl to create, enable and start the dialserver service:
     ````
     $ sudo bash ~/dialserver/install.sh
     ````
 
-3. You can also run it directly using the options shown above. If you've already started it as a service then you'll need to stop it first:
+4. You can also run it directly using the options shown above. If you've already started it as a service then you'll need to stop it first:
     ````
     $ sudo systemctl stop dialserver
     $ sudo node main.mjs [options]
     ````
 
 ## Issues
-### ***Raspberry Pi OS Bullseye only***
-The only issue I'm aware of is the Surface Dial goes to sleep after about 5 mins of inactivity. When running on Raspberry Pi OS Bullseye this is super annoying because there are several seconds delay when it wakes up and reconnects. But I've found when running on Raspberry Pi OS Buster it reconnects nearly instantly. So for now, I recommend sticking with Buster. The Buster legacy OS is available through the Raspberry Pi Imager using the ***Raspberry Pi OS (Other)*** menu and at https://www.raspberrypi.com/software/operating-systems/#raspberry-pi-os-legacy.
+### ***Raspberry Pi OS Bullseye and Bookworm***
+The only issue I'm aware of is the Surface Dial goes to sleep after about 5 mins of inactivity. When running on Raspberry Pi OS Bullseye this is super annoying because there are several seconds delay when it wakes up and reconnects. But I've found when running on Raspberry Pi OS Buster it reconnects very quickly. Bookworm is in the middle at about 1 second. So for now, I recommend sticking with Buster. The Buster legacy OS is available through the Raspberry Pi Imager using the ***Raspberry Pi OS (Other)*** menu and at https://www.raspberrypi.com/software/operating-systems/#raspberry-pi-os-legacy.
 
-If you do want to run on Bullseye, you'll need to wake up the Surface Dial by pressing the button or turning it and then waiting a few seconds for it come fully awake. At that point it will work as expected until its idle timeout kicks in again. Because of the delay during reconnection and to improve the UX, DialServer can optionally use the Surface Dial's haptic feedback to indicate when it is awake and ready to handle gestures. Use the `--buzz` option to enable this. When running as a service, edit the `dialserver.service` file to add that option to the command line and re-install using `sudo bash ~/dialserver/install.sh`
+If you do want to run on Bullseye, you'll need to wake up the Surface Dial by pressing the button or turning it and then waiting for it come fully awake. At that point it will work as expected until its idle timeout kicks in again. Because of the delay during reconnection and to improve the UX, DialServer can optionally use the Surface Dial's haptic feedback to indicate when it is awake and ready to handle gestures. Use the `--buzz` option to enable this. When running as a service, edit the `dialserver.service` file to add that option to the command line and re-install using `sudo bash ~/dialserver/install.sh`
 ````
 ...
 
