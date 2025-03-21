@@ -22,7 +22,7 @@ export class DialServer {
 
   // main processing loop
   async run() {
-    const retries = 0
+    let retries = 0
 
     while (true) {
       if (!DialDevice.isPresent())
