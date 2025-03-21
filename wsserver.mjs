@@ -27,7 +27,7 @@ export class WsServer {
 
       Log.debug(`client connected: ${client.id}`)
 
-      client.on('error', console.error);
+      client.on('error', Log.error);
       client.on('close', event => Log.debug(`client disconnected: ${client.id}`))
       client.on('message', data => Log.verbose(`< ${client.id} ${data.toString()}`))
       client.on('pong', () => {

@@ -95,7 +95,7 @@ export class DialServer {
         }
       }
     } catch (error) {
-      console.error('error processing events:', error)
+      Log.error('error processing events:', error)
     }
 
     this.#closeDevice(dialDevice)
@@ -122,7 +122,7 @@ export class DialServer {
         dialDevice = undefined
       }
     } catch (error) {
-      console.error('error closing dialDevice:', error)
+      Log.error('error closing dialDevice:', error)
     }
   }
 }

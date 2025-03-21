@@ -95,9 +95,10 @@ export class DialDevice {
     */
     try {
       if (this.#dev && this.#config.buzz)
+        Log.verbose('DialDevice buzz:', repeatCount)
         this.#dev.write([0x01, repeatCount & 0xff, 0x03, 0x00, 0x00])
     } catch (error) {
-      console.error('error writing to dialDevice:', error)
+      Log.error('error writing to dialDevice:', error)
     }
   }
 
@@ -159,7 +160,7 @@ export class DialDevice {
         Log.verbose('sendFeatureReport:', this.#hexString(features))
         this.#dev.sendFeatureReport(features)
       } catch (error) {
-        console.error('error sending feature report:', error)
+        Log.error('error sending feature report:', error)
         return false
       }
     }, 50)

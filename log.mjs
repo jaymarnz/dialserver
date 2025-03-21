@@ -11,14 +11,14 @@ export class Log {
   }
 
   static debug(...str) {
-    if (this.#debug) console.log(...str)
+    if (this.#debug) console.log(new Date(), ...str)
   }
 
   static verbose(...str) {
-    if (this.#verbose) console.log(...str)
+    if (this.#verbose) console.log(new Date(), ...str)
   }
 
   static error(...str) {
-    console.log(...str)
+    console.log(new Date(), ...str)
   }
 }
