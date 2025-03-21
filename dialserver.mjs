@@ -72,6 +72,7 @@ export class DialServer {
 
     try {
       dialDevice = new DialDevice(this.#config)
+      dialDevice.buzz(this.#config.buzzRepeatCountConnect)
 
       while (true) {
         const event = await dialDevice.read()
