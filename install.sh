@@ -18,7 +18,7 @@ mkdir -m 755 /opt/dialserver
 chmod 664 /opt/dialserver/*
 
 # install dependencies
-(cd /opt/dialserver; pnpm install)
+(cd /opt/dialserver; npm install)
 
 # if present delete the service file link
 [ -r /etc/systemd/system/dialserver.service ] && rm -f /etc/systemd/system/dialserver.service
