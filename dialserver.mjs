@@ -1,105 +1,57 @@
 // Copyright 2023 jaymarnz, https://github.com/jaymarnz
 // See LICENSE for details
 
-import udev from 'udev'
-import { DialDevice, DeviceType, EventType, Button } from './dialdevice.mjs'
+import { DialDevice, EventType, Button } from './dialdevice.mjs'
 import { WsServer } from './wsserver.mjs';
 import { Log } from './log.mjs'
 
 export class DialServer {
+  static #instance // Singleton instance
+
   #config
   #wsServer
+  #buttonTimer
   #aggregateTimer
-  #monitor
   #aggregate = 0
-  #baseDelayMs = 25
-  #maxDelayMs = 60 * 1000
 
   constructor(config) {
     this.#config = config
-    this.#wsServer = new WsServer(this.#config)
+    this.#wsServer = this.#wsServer || new WsServer(this.#config)
+    DialServer.#instance = this
   }
 
-  // main processing loop
+  // main processing loop - never returns
   async run() {
-    let retries = 0
-
+    const dialDevice = new DialDevice(this.#eventReceived.bind(this), this.#config).run()
     while (true) {
-      if (!DialDevice.isPresent())
-        await this.#waitForDevice()
-
-      await this.#processDeviceInput()
-
-      // processDeviceInput shouldn't ever return but just in case, let's wait a bit before
-      // trying again which also prevents filling /var/log/syslog
-      const delayMs = Math.min(Math.pow(2, retries++) * this.#baseDelayMs, this.#maxDelayMs)
-      Log.debug(`Waiting ${delayMs} msec before trying again`)
-      await new Promise(resolve => setTimeout(resolve, delayMs))
+      await new Promise(resolve => setTimeout(resolve, 1000))
     }
-  }
-
-  // start monitoring for the Surface Dial
-  async #waitForDevice() {
-    Log.debug('Waiting for DialDevice to connect')
-    const devices = []
-
-    return new Promise(resolve => {
-      // don't create the udev.monitor here (eg. const monitor = udev.monitor(...)) because
-      // it will go out of scope and that will close the monitor but I won't have control over
-      // when that happens and it will abort if I've already closed it. This way, I can determine
-      // when I want to close the monitor
-      this.#monitor = udev.monitor('input')
-      this.#monitor.on('add', async (device) => {
-        const deviceType = DialDevice.isSurfaceDial(device)
-
-        // when we've discovered both devices, we're connected!
-        if (deviceType !== DeviceType.NONE) {
-          devices[deviceType] = true
-          if (devices[DeviceType.MULTI_AXIS] && devices[DeviceType.CONTROL]) {
-            Log.debug('DialDevice has connected')
-            this.#monitor.close()
-            resolve()
-          }
-        }
-      })
-    })
   }
 
   // process input from the device
-  async #processDeviceInput() {
-    Log.debug('Processing device input')
-    let dialDevice
+  // aggregate rotation but immediately process clicks
+  #eventReceived(event) {
+    switch (event.type) {
+      case EventType.BUTTON:
+        Log.verbose('BUTTON:', event.value)
+        this.#wsServer.send({ button: (event.value == Button.DOWN) ? 'down' : 'up' })
 
-    try {
-      dialDevice = new DialDevice(this.#config)
-      dialDevice.buzz(this.#config.buzzRepeatCountConnect)
+        // the button timer prevents sending rotations while the button is being touched
+        // this is needed since small rotations are frequent when pressing the dial and
+        // a rotation when muted acts just like a button press (on purpose for a better UX)
+        clearTimeout(this.#buttonTimer)
+        this.#buttonTimer = setTimeout(() => {
+          this.#buttonTimer = undefined // re-enable rotation events
+        }, this.#config.buttonTime)
+        break
 
-      while (true) {
-        const event = await dialDevice.read()
-
-        // after every read, update the features because for some reason on buster they get reset
-        // whenever the device reconnects - this is ugly and I want to find a better solution!
-        // this isn't necessary on bullseye and bookworm
-        if (dialDevice && this.#config.sendFeatures)
-          dialDevice.setFeatures()
-
-        // aggregate rotation but immediately process clicks
-        switch (event.type) {
-          case EventType.BUTTON:
-            Log.verbose('BUTTON:', event.value)
-            this.#wsServer.send({ button: (event.value == Button.DOWN) ? 'down' : 'up' })
-            break
-          case EventType.ROTATE:
-            Log.verbose('ROTATE:', event.value)
-            this.#aggregateRotation(event.value)
-            break
+      case EventType.ROTATE:
+        if (!this.#buttonTimer) {
+          Log.verbose('ROTATE:', event.value)
+          this.#aggregateRotation(event.value)
         }
-      }
-    } catch (error) {
-      Log.error('Error processing events:', error)
+        break
     }
-
-    this.#closeDevice(dialDevice)
   }
 
   // don't send every rotation. rather, aggregate them and send periodically
@@ -110,20 +62,9 @@ export class DialServer {
       const degrees = this.#aggregate / 10.0 // this expects the dial is set to its default 3600 steps
       this.#aggregateTimer = undefined
       this.#aggregate = 0
-      if (Math.abs(degrees) >= this.#config.minDegrees)
+      if (Math.abs(degrees) >= this.#config.minDegrees) {
         this.#wsServer.send({ degrees })
-    }, this.#config.aggregationTime)
-  }
-
-  // close the device if open
-  #closeDevice(dialDevice) {
-    try {
-      if (dialDevice) {
-        dialDevice.close()
-        dialDevice = undefined
       }
-    } catch (error) {
-      Log.error('Error closing dialDevice:', error)
-    }
+    }, this.#config.aggregationTime)
   }
 }

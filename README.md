@@ -37,7 +37,7 @@ It creates both a web server and a web-socket server. The web server is just use
 
 In order to support Raspberry Pi OS based on Buster the `--features` option has been introduced. For Bullseye or Bookworm based systems it is not necessary and so the default value (true or false) is determined based on this. Consequently, you should not need to specify this option but can override it with `--features` or `--no-features`. When enabled a feature report is sent to the Surface Dial at appropriate times. This overcomes a bug in Buster that resets the number of dial steps whenever the Surface Dial reconnects.
 
-The Surface Dial's haptic feedback is optional to let you know when it wakes up and is ready to handle gestures. You can enable this with `--buzz`. When running on Bullseye this is very helpful since it takes several seconds to reconnect. On Buster reconnections happen in about 0.2 seconds or less so it's not necessary and that's why I recommend running on Buster. Bookworm seems to fall in the middle and is usable if you can tolerate about a 1 second delay after waking.
+The Surface Dial's haptic feedback is optional to let you know when it wakes up and is ready to handle gestures. You can enable this with `--buzz`. When running on Bullseye or Bookworm this is very helpful since it takes several seconds to reconnect. On Buster reconnections happen in about 0.2 seconds or less so it's not necessary and that's why I recommend running on Buster.
 
 ## Running as root
 You must run DialServer as root which the install does for you. But if you want to run from non-root then you must create a udev rule based on the vendorId and productId. The Microsoft Surface Dial vendorId is 0x045e and the productId is 0x091b. See https://github.com/node-hid/node-hid#udev-device-permissions for an example.
@@ -45,18 +45,22 @@ You must run DialServer as root which the install does for you. But if you want 
 ## Installation
 I've tested this on an RPi running both 32 bit and 64 bit Raspberry PI OS but it should work, or be easily adapted, to most any Linux.
 
-****IMPORTANT:**** I've discovered when using Raspberry Pi OS (64-bit) (Debian Bullseye) there is a significant delay upon wake-up when the Surface goes to sleep after its been idle for 5 minutes. There is virtually no wake-up delay when running the legacy version of Raspberry Pi OS (32-bit) based on Debian Buster (released 2023-02-21). I've also tried 64-bit Bookworm and the delay isn't as bad as Bullseye but still longer than Buster.
+****IMPORTANT:**** I've found when using Raspberry Pi OS (64-bit) (Debian Bullseye and Bookworm) there is a significant delay upon wake-up when the Surface goes to sleep after its been idle for 5 minutes. There is virtually no wake-up delay when running the legacy version of Raspberry Pi OS (32-bit) based on Debian Buster (released 2023-02-21).
 
-This seems to be a driver issue and until it is fixed in the Bullseye or a later version, I recommend using the Debian Buster version. I've verified that this version works well for me:
+Consequently, I recommend using the Debian Buster version. I've verified that this version works well for me:
 ````
 $ uname -a
 Linux rpi 5.10.103-v7l+ #1529 SMP Tue Mar 8 12:24:00 GMT 2022 armv7l GNU/Linux
 ````
 
 ### Installation Steps ###
-1. Create an image using the Raspberry Pi Imager and boot it on your RPi. I use **Legacy Raspberry PI Debian Buster OS (32-bit)** without a desktop environment and use SSH for all the rest of the steps.
+1. Create an image using the Raspberry Pi Imager and boot it on your RPi. Since I'm using a Rpi Zero W (not v2) I installed **Legacy Raspberry PI Debian Buster OS (32-bit)** without a desktop environment and use SSH for all the rest of the steps.
 
-    ***Important:*** See the issues section below if you intend to install on Raspberry Pi OS based on Bullseye or Bookworm. I currently don't recommend using Bullseye.
+    The Buster legacy images no longer appear in the standard Raspberry Imager downloads. But you can get the offical version I'm using from here: https://downloads.raspberrypi.org/raspios_oldstable_lite_armhf/images/raspios_oldstable_lite_armhf-2022-04-07/.
+
+    There are also more recent versions of 32-bit Buster which may work but I haven't tested any of them: https://downloads.raspberrypi.org/raspios_oldstable_lite_armhf/images/
+
+    ***Important:*** See the issues section below if you intend to install on Raspberry Pi OS based on Bullseye or Bookworm.
 
 2. Update the package list and all packages:
     ```
@@ -125,15 +129,19 @@ You only need to do this once to pair your RPi with the Surface Dial. After it h
 ## Install DialServer
 1. Download the contents of this repository to a directory (eg. `~/dialserver`):
     ```
-    git clone https://github.com/jaymarnz/dialserver.git
+    $ git clone https://github.com/jaymarnz/dialserver.git
+    $ cd dialserver
     ```
 
 2. Install required Node packages (only necessary if you want to run it directly rather than installing it as a service in the next step):
     ````
-    $ (cd ~/dialserver; npm install)
+    $ npm install --build-from-source node-hid # only need this on armv6 - see note below
+    $ npm install
     ````
 
-3. To keep it running all the time you can run it as a service. The install script copies the files to /opt/dialserver and uses systemctl to create, enable and start the dialserver service:
+    ***Important:*** On 32-bit armv6 (Rpi Zero W - not Zero 2), you have to build node-hid from source since there isn't currently a prebuild for it. The install script (see below) does this for you as do the commands above. Unfortunatly, this takes about 15 minutes to build on a tiny Rpi Zero but you only have to do it the first time you install. However, if you are on this platform and just do a normal npm install then you'll get an `Illegal instruction` when you run main.mjs.
+
+3. To keep it running all the time you can run it as a service. The install script copies the files to /opt/dialserver, installs dependencies (taking into account the above note) and uses systemctl to create, enable and start the dialserver service:
     ````
     $ sudo bash ~/dialserver/install.sh
     ````
@@ -146,9 +154,9 @@ You only need to do this once to pair your RPi with the Surface Dial. After it h
 
 ## Issues
 ### ***Raspberry Pi OS Bullseye and Bookworm***
-The only issue I'm aware of is the Surface Dial goes to sleep after about 5 mins of inactivity. When running on Raspberry Pi OS Bullseye this is super annoying because there are several seconds delay when it wakes up and reconnects. But I've found when running on Raspberry Pi OS Buster it reconnects very quickly. Bookworm is in the middle at about 1 second. So for now, I recommend sticking with Buster. The Buster legacy OS is available through the Raspberry Pi Imager using the ***Raspberry Pi OS (Other)*** menu and at https://www.raspberrypi.com/software/operating-systems/#raspberry-pi-os-legacy.
+The only issue I'm aware of is the Surface Dial goes to sleep after about 5 mins of inactivity. When running on Raspberry Pi OS Bullseye or Bookworm this is super annoying because there are several seconds delay when it wakes up and reconnects. But I've found when running on Raspberry Pi OS Buster it reconnects very quickly. So for now, I recommend sticking with Buster. The Buster legacy OS is no longer available through the Raspberry Pi Imager but you can download the offical version from the links in the **Installation Steps** above.
 
-If you do want to run on Bullseye, you'll need to wake up the Surface Dial by pressing the button or turning it and then waiting for it come fully awake. At that point it will work as expected until its idle timeout kicks in again. Because of the delay during reconnection and to improve the UX, DialServer can optionally use the Surface Dial's haptic feedback to indicate when it is awake and ready to handle gestures. Use the `--buzz` option to enable this. When running as a service, edit the `dialserver.service` file to add that option to the command line and re-install using `sudo bash ~/dialserver/install.sh`
+If you do want to run on Bullseye or Bookworm, you'll need to wake up the Surface Dial by pressing the button or turning it and then waiting for it come fully awake. At that point it will work as expected until its idle timeout kicks in again. Because of the delay during reconnection and to improve the UX, DialServer can optionally use the Surface Dial's haptic feedback to indicate when it is awake and ready to handle gestures. Use the `--buzz` option to enable this. When running as a service, edit the `dialserver.service` file to add that option to the command line and re-install using `sudo bash ~/dialserver/install.sh`
 ````
 ...
 

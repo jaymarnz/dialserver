@@ -17,6 +17,7 @@ const defaultConfig = {
   wsPort: 3000,
   htmlPort: 3080,
   aggregationTime: 50,
+  buttonTime: 100, // ms to ignore rotations after a button press - needed because a rotation when muted acts like a button press
   minDegrees: 0.5, // minimum reportable rotation
   dialSteps: 3600, // number of subdivisions the dial should use (don't change this)
   buzzRepeatCountConnect: 4 // controls the "feel" on device wake-up

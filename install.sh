@@ -17,7 +17,12 @@ mkdir -m 755 /opt/dialserver
 (cd $DIR; rsync -rt --exclude node_modules . /opt/dialserver)
 chmod 664 /opt/dialserver/*
 
-# install dependencies
+# conditional install for node-hid on Rpi Zero W (v1 is 32 bit)
+if [[ $(uname -m) == armv6l ]]; then
+  (cd /opt/dialserver; npm install --build-from-source node-hid)
+fi
+
+# install all other dependencies
 (cd /opt/dialserver; npm install)
 
 # if present delete the service file link
