@@ -49,18 +49,18 @@ export class DialDevice {
       const parent = udev.getNodeParentBySyspath(device.syspath)
 
       if (parent && parent.NAME === '"Surface Dial System Multi Axis"') {
-        Log.verbose('found multi-axis device: ', device.DEVNAME)
+        Log.debug('Found multi-axis device: ', device.DEVNAME)
         return DeviceType.MULTI_AXIS
       }
       else if (parent && parent.NAME === '"Surface Dial System Control"') {
-        Log.verbose('found control device: ', device.DEVNAME)
+        Log.debug('Found control device: ', device.DEVNAME)
         return DeviceType.CONTROL
       }
       else
         return DeviceType.NONE
     } catch (error) {
-      Log.verbose('isSurfaceDial - udev.getNodeParentBySyspath error:', error)
-      Log.verbose('device:', device)
+      // too many unrelated errors on other devices... so stay quiet unless needed for debugging
+      // Log.verbose(`isSurfaceDial - udev.getNodeParentBySyspath error for device ${device.syspath}:`, error)
     }
 
     return false
@@ -78,7 +78,7 @@ export class DialDevice {
   }
 
   close() {
-    Log.verbose('DialDevice close')
+    Log.debug('DialDevice close')
     if (this.#featTimeout) clearTimeout(this.#featTimeout)
     if (this.#featInterval) clearInterval(this.#featInterval)
     if (this.#dev) this.#dev.close()
@@ -98,7 +98,7 @@ export class DialDevice {
         Log.verbose('DialDevice buzz:', repeatCount)
         this.#dev.write([0x01, repeatCount & 0xff, 0x03, 0x00, 0x00])
     } catch (error) {
-      Log.error('error writing to dialDevice:', error)
+      Log.error('Error writing to device:', error)
     }
   }
 
@@ -160,7 +160,7 @@ export class DialDevice {
         Log.verbose('sendFeatureReport:', this.#hexString(features))
         this.#dev.sendFeatureReport(features)
       } catch (error) {
-        Log.error('error sending feature report:', error)
+        Log.error('Error sending feature report:', error)
         return false
       }
     }, 50)

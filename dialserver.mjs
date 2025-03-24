@@ -33,7 +33,7 @@ export class DialServer {
       // processDeviceInput shouldn't ever return but just in case, let's wait a bit before
       // trying again which also prevents filling /var/log/syslog
       const delayMs = Math.min(Math.pow(2, retries++) * this.#baseDelayMs, this.#maxDelayMs)
-      Log.debug(`processDeviceInput has returned - will wait ${delayMs} msec before trying again`)
+      Log.debug(`Waiting ${delayMs} msec before trying again`)
       await new Promise(resolve => setTimeout(resolve, delayMs))
     }
   }
@@ -96,7 +96,7 @@ export class DialServer {
         }
       }
     } catch (error) {
-      Log.error('error processing events:', error)
+      Log.error('Error processing events:', error)
     }
 
     this.#closeDevice(dialDevice)
@@ -123,7 +123,7 @@ export class DialServer {
         dialDevice = undefined
       }
     } catch (error) {
-      Log.error('error closing dialDevice:', error)
+      Log.error('Error closing dialDevice:', error)
     }
   }
 }

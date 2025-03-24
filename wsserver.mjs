@@ -25,10 +25,10 @@ export class WsServer {
       client.id = req.headers['sec-websocket-key'] // for logging purposes create an id for each client
       client.isAlive = true
 
-      Log.debug(`client connected: ${client.id}`)
+      Log.debug(`Client connected: ${client.id}`)
 
       client.on('error', Log.error);
-      client.on('close', event => Log.debug(`client disconnected: ${client.id}`))
+      client.on('close', event => Log.debug(`Client disconnected: ${client.id}`))
       client.on('message', data => Log.verbose(`< ${client.id} ${data.toString()}`))
       client.on('pong', () => {
         Log.verbose(`client pong received: ${client.id}`)
@@ -58,7 +58,7 @@ export class WsServer {
 
   send(data) {
     const payload = JSON.stringify(data)
-    Log.debug('>', payload)
+    Log.verbose('>', payload)
 
     this.#wss.clients.forEach(client => {
       if (client.readyState === WebSocket.OPEN) {

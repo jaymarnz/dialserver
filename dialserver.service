@@ -1,5 +1,5 @@
  [Unit]
- Description=DialServer - Websocket Server for Microsoft Surface Dial
+ Description=Websocket Server for Microsoft Surface Dial
  After=multi-user.target
 
  [Service]
