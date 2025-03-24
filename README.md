@@ -45,7 +45,7 @@ You must run DialServer as root which the install does for you. But if you want 
 ## Installation
 I've tested this on an RPi running both 32 bit and 64 bit Raspberry PI OS but it should work, or be easily adapted, to most any Linux.
 
-****IMPORTANT:**** I've found when using Raspberry Pi OS (64-bit) (Debian Bullseye and Bookworm) there is a significant delay upon wake-up when the Surface goes to sleep after its been idle for 5 minutes. There is virtually no wake-up delay when running the legacy version of Raspberry Pi OS (32-bit) based on Debian Buster (released 2023-02-21).
+****IMPORTANT:**** I've found when using Raspberry Pi OS (64-bit) (Debian Bullseye and Bookworm) there is a significant delay upon wake-up when the Surface Dial goes to sleep after its been idle for 5 minutes. There is virtually no wake-up delay when running the legacy version of Raspberry Pi OS (32-bit) based on Debian Buster (released 2023-02-21).
 
 Consequently, I recommend using the Debian Buster version. I've verified that this version works well for me:
 ````
@@ -81,11 +81,6 @@ Linux rpi 5.10.103-v7l+ #1529 SMP Tue Mar 8 12:24:00 GMT 2022 armv7l GNU/Linux
     For RPi Zero W (armv6) you can't use the above steps since Node has stopped officially supporting armv6. However, I've included a script to install Node v16.18.0 or you can easily update this script to install other versions:
     ```
     $ bash install-node-v16.18.0.sh
-    ```
-
-5. Enable corepack since I use pnpm as the package manager:
-    ```
-    $ sudo corepack enable
     ```
 
 ## Pairing the Microsoft Surface Dial
