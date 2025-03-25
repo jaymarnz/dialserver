@@ -10,22 +10,16 @@ export class DialServer {
 
   #config
   #wsServer
+  #device
   #buttonTimer
   #aggregateTimer
   #aggregate = 0
 
   constructor(config) {
+    DialServer.#instance = this
     this.#config = config
     this.#wsServer = this.#wsServer || new WsServer(this.#config)
-    DialServer.#instance = this
-  }
-
-  // main processing loop - never returns
-  async run() {
-    const dialDevice = new DialDevice(this.#eventReceived.bind(this), this.#config).run()
-    while (true) {
-      await new Promise(resolve => setTimeout(resolve, 1000))
-    }
+    this.#device = new DialDevice(this.#eventReceived.bind(this), this.#config).run()
   }
 
   // process input from the device

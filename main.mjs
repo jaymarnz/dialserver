@@ -89,4 +89,4 @@ Log.init(config)
 Log.verbose('config:', config)
 
 if (config.htmlPort !== 0) new HtmlServer(config)
-await new DialServer(config).run()
+new DialServer(config)
