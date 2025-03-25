@@ -14,4 +14,4 @@ EXCLUDE=(
   --exclude "copy2device.sh"
   --exclude "install-node-*.sh"
 )
-rsync -az "${EXCLUDE[@]}" --out-format="%f%L" "$SOURCE_DIR" "$DESTINATION"
+rsync -az --delete "${EXCLUDE[@]}" --out-format="%f%L" "$SOURCE_DIR" "$DESTINATION"
