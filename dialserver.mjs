@@ -11,6 +11,7 @@ export class DialServer {
   #config
   #wsServer
   #device
+  #buttonState
   #buttonTimer
   #aggregateTimer
   #aggregate = 0
@@ -30,17 +31,22 @@ export class DialServer {
         Log.verbose('BUTTON:', event.value)
         this.#wsServer.send({ button: (event.value == Button.DOWN) ? 'down' : 'up' })
 
-        // the button timer prevents sending rotations while the button is being touched
-        // this is needed since small rotations are frequent when pressing the dial and
-        // a rotation when muted acts just like a button press (on purpose for a better UX)
-        clearTimeout(this.#buttonTimer)
-        this.#buttonTimer = setTimeout(() => {
-          this.#buttonTimer = undefined // re-enable rotation events
-        }, this.#config.buttonTime)
+        // don't send rotations while the button is down and for some time after the button
+        // is up. This prevents slight movement while the button is pressed, which happens frequently
+        // when dial is set for high resolution, because a rotation when muted acts just like a
+        // button press (on purpose for a better UX)
+        this.#buttonState = event.value
+
+        if (this.#config.highResolution && event.value == Button.UP) {
+          clearTimeout(this.#buttonTimer)
+          this.#buttonTimer = setTimeout(() => {
+            this.#buttonTimer = undefined // re-enable rotation events
+          }, this.#config.buttonTime)
+        }
         break
 
       case EventType.ROTATE:
-        if (!this.#buttonTimer) {
+        if (!this.#config.highResolution || (this.#buttonState !== Button.DOWN && !this.#buttonTimer)) {
           Log.verbose('ROTATE:', event.value)
           this.#aggregateRotation(event.value)
         }
@@ -48,17 +54,18 @@ export class DialServer {
     }
   }
 
-  // don't send every rotation. rather, aggregate them and send periodically
+  // don't send every rotation if dial is set for high resolution.
+  // rather, aggregate them and send periodically
   #aggregateRotation(value) {
     this.#aggregate += value
 
     this.#aggregateTimer = this.#aggregateTimer || setTimeout(() => {
-      const degrees = this.#aggregate / 10.0 // this expects the dial is set to its default 3600 steps
+      const degrees = this.#aggregate * (360 / this.#config.dialSteps)
       this.#aggregateTimer = undefined
       this.#aggregate = 0
       if (Math.abs(degrees) >= this.#config.minDegrees) {
         this.#wsServer.send({ degrees })
       }
-    }, this.#config.aggregationTime)
+    }, this.#config.highResolution ? this.#config.aggregationTime : 0)
   }
 }

@@ -12,6 +12,5 @@ EXCLUDE=(
   --exclude "devdocs"
   --exclude "node_modules"
   --exclude "copy2device.sh"
-  --exclude "install-node-*.sh"
 )
 rsync -az --delete "${EXCLUDE[@]}" --out-format="%f%L" "$SOURCE_DIR" "$DESTINATION"

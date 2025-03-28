@@ -40,7 +40,6 @@ export class DialDevice {
   #eventFunc
   #monitor
   #buttonDown
-  #featureTimer
 
   constructor(eventFunc, config = {}) {
     this.#eventFunc = eventFunc
@@ -105,11 +104,11 @@ export class DialDevice {
     this.#device.on('data', this.#dataReceived.bind(this))
     this.#device.on('error', (error) => {
         Log.error('HID error:', error)
-        clearTimeout(this.#featureTimer)
         this.#device.close()
       })
 
     this.#buzz(this.#config.buzzRepeatCountConnect)
+    this.#setFeatures()
   }
 
   #buzz(repeatCount = 0) {
@@ -140,26 +139,21 @@ export class DialDevice {
 
       // don't keep sending repeated button downs (just the first one)
       if (event) {
+        // This prevents double button up events which I have occasionally seen
         if (event.type === EventType.BUTTON && event.value === Button.UP) {
-          // This prevents double button up event which I have occasionally seen
           if (!this.#buttonDown) return // ignore the data
           this.#buttonDown = false
         }
 
+        // This emits only a single button down even though the dial sends
+        // a continuous stream of button down events while the button is pressed
         if (event.type === EventType.BUTTON && event.value === Button.DOWN) {
           if (this.#buttonDown) return // ignore the data
           else this.#buttonDown = true
         }
 
         this.#eventFunc(event)
-
-        // after every read, update the features because for some reason on Buster they get reset
-        // whenever the device reconnects - this is ugly and I want to find a better solution!
-        // this isn't necessary on later OS versions
-        if (this.#config.sendFeatures) {
-          this.#setFeatures()
-        }
-     }
+      }
     }
   }
 
@@ -202,42 +196,45 @@ export class DialDevice {
     buf[6] = 0x00                               // retrigger period - low (1-10)
     buf[7] = 0x00                               // retrigger period - high (1-10)
     */
-
-    // Don't change the default number of steps from 3600 or else the aggregation and bluview won't work well
     const features = [0x01, this.#config.dialSteps & 0xff, (this.#config.dialSteps >> 8) & 0xff, 0x00, 0x01, 0x00, 0x00, 0x00]
 
-    // sendFeatureReport is synchronous - so use a 50ms timeout to queue it but this also debounces it
-    clearTimeout(this.#featureTimer)
-    this.#featureTimer = setTimeout(() => {
-      try {
-        if (this.#device) {
-          this.#device.sendFeatureReport(features)
-          Log.verbose('sendFeatureReport:', this.#hexString(features))
-        }
-      } catch (error) {
-        Log.error('Error sending feature report:', error)
-        return false
+    try {
+      if (this.#device) {
+        Log.verbose('sendFeatureReport:', this.#hexString(features))
+        this.#device.sendFeatureReport(features)
       }
-    }, 50)
-
-    return true
+    } catch (error) {
+      // on Buster this happens if the device isn't currently connected. It won't matter though since the feature report
+      // we're currently sending is the default for the Surface Dial on Buster. On more recent versions of the OS we won't
+      // be calling this function when the device isn't connected.
+      Log.debug('Error sending feature report:', error.message)
+      return false
+    }
   }
 
   // This is only used for debugging
-  // Note: On 32bit Buster the feature report is missing the first byte. This is a bug and doesn't happen on later releases
+  // Note: On Buster the feature report is missing the first byte. This is a bug and doesn't happen on later releases
   #getFeatureReport(reports = [0x01]) {
+    let gotError = false
+    let reportId
+
     if (this.#device) {
-      try {
-        reports.forEach((i) =>
-          Log.verbose(`Feature report ${i.toString(16).padStart(2, '0')}: `, this.#hexString(this.#device.getFeatureReport(i, 16)))
-        )
-      } catch (error) {
-        // Log.verbose('error getting feature report:', error)
-        return false
-      }
+      reports.forEach((i) => {
+        try {
+          reportId = i
+          Log.verbose(`Feature report ${this.#hexByte(i)}: `, this.#hexString(this.#device.getFeatureReport(i, 73)))
+        } catch (error) {
+          Log.verbose(`error getting feature report ${this.#hexByte(reportId)}:`, error)
+          gotError = true
+        }
+      })
     }
 
-    return true
+    return !gotError
+  }
+
+  #hexByte(b) {
+    return b.toString(16).padStart(2, '0')
   }
 
   #hexString(arr) {
