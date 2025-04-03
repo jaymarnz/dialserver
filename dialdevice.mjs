@@ -49,6 +49,7 @@ export class DialDevice {
 
   run() {
     this.#monitor = udev.monitor('input')
+
     this.#monitor.on('add', (device) => {
       const deviceType = this.#isSurfaceDial(device)
 
@@ -60,6 +61,17 @@ export class DialDevice {
           this.#discovered = [] // for next time...
           this.#startListening()
         }
+      }
+    })
+
+    this.#monitor.on('remove', (device) => {
+      try {
+        Log.debug('remove:', device)
+        if (this.#isSurfaceDial(device)) {
+          this.#device.close()
+        }
+      } catch (error) {
+        Log.error('monitor.on(remove):', error)
       }
     })
 
@@ -104,7 +116,10 @@ export class DialDevice {
     this.#device.on('data', this.#dataReceived.bind(this))
     this.#device.on('error', (error) => {
         Log.error('HID error:', error)
-        this.#device.close()
+        // Don't close the device on Buster because it never discovers it again. On later versions it might
+        // be necessary to close it if a subsequent discovery event is also triggered by monitor 'add' above
+        // in the meantime I've moved device.close to the remove event
+        // this.#device.close()
       })
 
     this.#buzz(this.#config.buzzRepeatCountConnect)
