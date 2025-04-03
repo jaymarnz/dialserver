@@ -19,6 +19,8 @@ export class WsServer {
     }
 
     this.#wss = new WebSocketServer({ port: this.#config.wsPort })
+    this.#wss.on('error', error => Log.error('WsServer error:', error))
+
     Log.debug(`Waiting for websocket clients on port ${this.#config.wsPort}`)
 
     this.#wss.on('connection', (client, req) => {
@@ -27,7 +29,7 @@ export class WsServer {
 
       Log.debug(`Client connected: ${client.id}`)
 
-      client.on('error', Log.error);
+      client.on('error', error => Log.error('ws client error:', error));
       client.on('close', event => Log.debug(`Client disconnected: ${client.id}`))
       client.on('message', data => Log.verbose(`< ${client.id} ${data.toString()}`))
       client.on('pong', () => {
@@ -40,29 +42,41 @@ export class WsServer {
 
     this.#interval = setInterval(() => {
       this.#wss.clients.forEach(client => {
-        if (client.isAlive === false) {
-          Log.debug(`client did not respond to ping: ${client.id}`)
-          return client.terminate()
-        }
+        try {
+          if (client.isAlive === false) {
+            Log.debug(`client did not respond to ping: ${client.id}`)
+            return client.terminate()
+          }
 
-        Log.verbose(`pinging client: ${client.id}`)
-        client.isAlive = false
-        client.ping()
+          Log.verbose(`pinging client: ${client.id}`)
+          client.isAlive = false
+          client.ping()
+        } catch (error) {
+          Log.error('ws ping error:', error)
+        }
       })
     }, this.#config.keepaliveTime)
   }
 
   close() {
-    this.#wss.close()
+    try {
+      this.#wss.close()
+    } catch (error) {
+      Log.error(error)
+    }
   }
 
   send(data) {
     const payload = JSON.stringify(data)
     Log.verbose('>', payload)
-
+    
     this.#wss.clients.forEach(client => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(`${payload}`)
+      try {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(`${payload}`)
+        }
+      } catch (error) {
+        Log.error('ws send error:', error)
       }
     })
   }

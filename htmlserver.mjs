@@ -34,6 +34,6 @@ export class HtmlServer {
       .listen(this.#config.htmlPort, () => {
         Log.debug(`Web server listening on ${this.#config.htmlPort}`)
       })
-      .on('error', Log.error)
+      .on('error', error => Log.error('HtmlServer error:', error))
   }
 }
