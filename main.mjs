@@ -20,7 +20,7 @@ const defaultConfig = {
   minDegrees: 0.5, // minimum reportable degrees
   buzzRepeatCountConnect: 4, // controls the "feel" on device wake-up
   
-  // The number of subdivisions (aka resolution) the dial should use (blueview may need to be adjusted if this is changed)
+  // The number of subdivisions (aka resolution) the dial should use (bluview may need to be adjusted if this is changed)
   // More importantly, this is the setting that the surface dial always re-connects with on Buster. By setting it here to match
   // then I no longer have to reset the features after every event. It also makes this work on legacy as well as new
   // versions of the OS without any special conditions.
