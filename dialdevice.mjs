@@ -55,6 +55,8 @@ export class DialDevice {
 
       // when we've discovered both devices, we're connected!
       if (deviceType !== DeviceType.NONE) {
+        // Log.debug(`sysattr (${deviceType}):`, udev.getSysattrBySyspath(device.syspath))
+
         this.#discovered[deviceType] = true
         if (this.#discovered[DeviceType.MULTI_AXIS] && this.#discovered[DeviceType.CONTROL]) {
           Log.debug('DialDevice has connected')
@@ -67,11 +69,23 @@ export class DialDevice {
     this.#monitor.on('remove', (device) => {
       try {
         Log.debug('remove:', device)
+        // Log.debug('parent:', udev.getNodeParentBySyspath(device.syspath))
+        // Log.debug('sysattr:', udev.getSysattrBySyspath(device.syspath))
         if (this.#isSurfaceDial(device)) {
           this.#device.close()
         }
       } catch (error) {
         Log.error('monitor.on(remove):', error)
+      }
+    })
+    
+    this.#monitor.on('change', (device) => {
+      try {
+        Log.debug('change:', device)
+        // Log.debug('parent:', udev.getNodeParentBySyspath(device.syspath))
+        // Log.debug('sysattr:', udev.getSysattrBySyspath(device.syspath))
+      } catch (error) {
+          Log.error('monitor.on(change):', error)
       }
     })
 
@@ -223,7 +237,6 @@ export class DialDevice {
       // we're currently sending is the default for the Surface Dial on Buster. On more recent versions of the OS we won't
       // be calling this function when the device isn't connected.
       Log.debug('Error sending feature report:', error.message)
-      return false
     }
   }
 
