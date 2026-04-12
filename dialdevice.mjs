@@ -68,10 +68,9 @@ export class DialDevice {
 
     this.#monitor.on('remove', (device) => {
       try {
-        Log.debug('remove:', device)
-        // Log.debug('parent:', udev.getNodeParentBySyspath(device.syspath))
-        // Log.debug('sysattr:', udev.getSysattrBySyspath(device.syspath))
+        Log.debug('monitor.on(remove) device:', device)
         if (this.#isSurfaceDial(device)) {
+          Log.debug('monitor.on(remove) closing the device')
           this.#device.close()
         }
       } catch (error) {
@@ -129,12 +128,11 @@ export class DialDevice {
     this.#device = new HID.HID(SurfaceDial.vid, SurfaceDial.pid)
     this.#device.on('data', this.#dataReceived.bind(this))
     this.#device.on('error', (error) => {
-        Log.error('HID error:', error)
-        // Don't close the device on Buster because it never discovers it again. On later versions it might
-        // be necessary to close it if a subsequent discovery event is also triggered by monitor 'add' above
-        // in the meantime I've moved device.close to the remove event
-        // this.#device.close()
-      })
+      Log.debug('HID error:', error) // to prevent log growth for normal errors, I only report this to the debug log
+      // Don't close the device on Buster because it never discovers it again. On Trixie it doesn't appear to
+      // be necessary to close it either. So, I've moved device.close to the remove event
+      // this.#device.close()
+    })
 
     this.#buzz(this.#config.buzzRepeatCountConnect)
     this.#setFeatures()

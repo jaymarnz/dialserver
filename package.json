@@ -1,6 +1,6 @@
 {
   "name": "dialserver",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Websocket interface for Microsoft Surface Dial",
   "author": "jaymarnz",
   "main": "main.mjs",
@@ -10,10 +10,10 @@
     "node": ">=16"
   },
   "dependencies": {
-    "express": "^4.21.2",
-    "node-hid": "^3.1.2",
+    "express": "^5.2.1",
+    "node-hid": "^3.3.0",
     "udev": "^1.0.1",
-    "ws": "^8.18.1",
-    "yargs": "^17.7.2"
+    "ws": "^8.20.0",
+    "yargs": "^18.0.0"
   }
 }
