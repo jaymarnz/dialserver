@@ -132,3 +132,31 @@ You only need to do this once to pair your RPi with the Surface Dial. After it h
     $ sudo systemctl stop dialserver
     $ sudo node main.mjs [options]
     ````
+
+## Setting the Wifi connection to retry forever
+By default the Raspberry Pi OS sets the WiFi connection to only retry a limited number of times. In a powerfail situation, or similar, it's likely the Rpi will reboot faster
+than the WiFi router and will run out of retries. In that case it will appear dead and have to be power cycled to cause it to connect to the WiFi router. Execute these commands (for recent versions of Rpi OS):
+
+````
+$ nmcli connection show
+NAME                 UUID                                  TYPE      DEVICE 
+netplan-wlan0-XXXXX  3be7c803-e17d-398a-a81a-018b9ebb51f0  wifi      wlan0  
+lo                   13e02f27-f81e-436a-a762-b7fb3002f9d3  loopback  lo     
+netplan-eth0         75a1216a-9d1a-30cd-8aca-ace5526ec021  ethernet  --
+````
+The XXXXX above should be your WiFi SSID. Substitute that into this command:
+
+````
+$ nmcli connection modify "netplan-wlan0-XXXXX" connection.autoconnect-retries 0
+````
+
+This causes the WiFi to retry forever. You can confirm with:
+
+````
+$ nmcli connection show netplan-wlan0-XXXXX | grep autoconnect
+connection.autoconnect:                 yes
+connection.autoconnect-priority:        0
+connection.autoconnect-retries:         0 (forever)
+connection.autoconnect-slaves:          -1 (default)
+connection.autoconnect-ports:           -1 (default)
+````
