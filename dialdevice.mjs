@@ -87,7 +87,7 @@ export class DialDevice {
              device.NAME === '"Surface Dial System Control"')) {
           this.#connected = false
           Log.debug('DialDevice has disconnected')
-          this.#eventFunc({ type: EventType.DISCONNECT })
+          if (this.#eventFunc) this.#eventFunc({ type: EventType.DISCONNECT })
         }
       } catch (error) {
         Log.error('monitor.on(remove):', error)
@@ -156,7 +156,7 @@ export class DialDevice {
     // signal that the dial's BLE link is up (after an idle disconnect this is the
     // earliest moment anything knows the user is interacting with the dial)
     this.#connected = true
-    this.#eventFunc({ type: EventType.CONNECT })
+    if (this.#eventFunc) this.#eventFunc({ type: EventType.CONNECT })
   }
 
   #buzz(repeatCount = 0) {

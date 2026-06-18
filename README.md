@@ -6,10 +6,12 @@ It's designed to run on a Raspberry Pi Zero 2W and the installation instructions
 ## Example web socket messages
 See `index.html` for an example of connecting and viewing the web socket messages. All messages are in JSON format. Examples:
 ````
+{ "status" : "connected" }
 { "button" : "down" }
 { "button" : "up" }
 { "degrees" : 3.1 }
 { "degrees" : -5.3 }
+{ "status": "disconnected" }
 ````
 
 ## Operating system choices
