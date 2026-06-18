@@ -2,25 +2,109 @@
 <html>
 
 <head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DialServer monitor</title>
+  <style>
+    body { font-family: monospace; font-size: 14px; margin: 0; background: #111; color: #ddd; }
+    #bar { position: sticky; top: 0; background: #1c1c1c; padding: 8px; border-bottom: 1px solid #333; }
+    #bar button { font-family: monospace; font-size: 14px; margin-right: 8px; }
+    #conn { font-weight: bold; }
+    #conn.up { color: #5cd65c; }
+    #conn.down { color: #888; }
+    table { border-collapse: collapse; width: 100%; }
+    td { padding: 2px 10px; white-space: nowrap; border-bottom: 1px solid #1e1e1e; }
+    .time { color: #888; }
+    .delta { text-align: right; color: #d2b04c; }
+    .msg { width: 100%; }
+    tr.degrees .msg { color: #6db3ff; }
+    tr.button  .msg { color: #ffd24c; }
+    tr.status  .msg { color: #5cd65c; font-weight: bold; }
+    tr.other   .msg { color: #aaa; }
+  </style>
 </head>
 
 <body>
-  <input type="button" value="Reset" onclick="reset()">
-  <div id="messages"></div>
+  <div id="bar">
+    <button onclick="reset()">Reset</button>
+    <span>state: <span id="conn" class="down">dial disconnected</span></span>
+    <span style="margin-left:16px;">count: <span id="count">0</span></span>
+  </div>
+  <table><tbody id="messages"></tbody></table>
+
   <script>
-    const webSocket = new WebSocket('ws://' + window.location.hostname + ':3000/');
+    // The Δms column is the time since the previous message arrived at this page.
+    // A wake-up flush shows up as a tight burst (small Δ); a deliberate turn comes
+    // after a clear gap. Browser receive-timing has a little jitter but is more than
+    // enough to separate burst from intent. Cross-check against dialserver --verbose
+    // logs for server-side timestamps if needed.
+    let last = null
 
-    webSocket.onmessage = (event) => {
-      document.getElementById('messages').innerHTML += event.data + "<br>";
-    };
+    function pad(n, l = 2) { return String(n).padStart(l, '0') }
+    function clock(d) {
+      return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) + '.' + pad(d.getMilliseconds(), 3)
+    }
 
-    webSocket.addEventListener("open", () => {
-      console.log("Connected to dialServer");
-    });
+    function rowClass(data) {
+      try {
+        const o = JSON.parse(data)
+        if (typeof o.degrees === 'number') return 'degrees'
+        if (typeof o.button === 'string') return 'button'
+        if (typeof o.status === 'string') return 'status'
+      } catch (e) {}
+      return 'other'
+    }
+
+    function add(data) {
+      const now = performance.now()
+      const delta = last === null ? null : now - last
+      last = now
+
+      const tr = document.createElement('tr')
+      tr.className = rowClass(data)
+
+      const deltaTxt = delta === null ? '' : delta.toFixed(1)
+      tr.innerHTML =
+        '<td class="time">' + clock(new Date()) + '</td>' +
+        '<td class="delta">' + deltaTxt + '</td>' +
+        '<td class="msg"></td>'
+      tr.lastChild.textContent = data
+      const m = document.getElementById('messages')
+      m.appendChild(tr)
+      document.getElementById('count').textContent = m.childElementCount
+      window.scrollTo(0, document.body.scrollHeight)
+
+      // reflect dial connection state in the header
+      if (tr.className === 'status') {
+        try {
+          const up = JSON.parse(data).status === 'connected'
+          const c = document.getElementById('conn')
+          c.textContent = up ? 'dial connected' : 'dial disconnected'
+          c.className = up ? 'up' : 'down'
+        } catch (e) {}
+      }
+    }
+
+    function setDisconnected() {
+      // default to disconnected until the server tells us otherwise (it sends the current
+      // dial status as soon as a client connects)
+      const c = document.getElementById('conn')
+      c.textContent = 'dial disconnected'
+      c.className = 'down'
+    }
 
     function reset() {
-      document.getElementById('messages').innerHTML = '';
+      document.getElementById('messages').innerHTML = ''
+      document.getElementById('count').textContent = '0'
+      last = null
     }
+
+    function connect() {
+      const ws = new WebSocket('ws://' + window.location.hostname + ':3000/')
+      ws.onmessage = (event) => add(event.data)
+      ws.onclose = () => { setDisconnected(); setTimeout(connect, 1000) }
+      ws.onerror = () => ws.close()
+    }
+    connect()
   </script>
 </body>
 

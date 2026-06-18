@@ -19,19 +19,21 @@ const defaultConfig = {
   buttonTime: 100, // ms to ignore rotations after a button press - needed because a rotation when muted acts like a button press
   minDegrees: 0.5, // minimum reportable degrees
   buzzRepeatCountConnect: 4, // controls the "feel" on device wake-up
+
+  // Wake-up flush suppression. When the dial reconnects after an idle BLE drop it dumps the
+  // motion buffered during reconnect as a short burst of large-magnitude reports, which would
+  // otherwise spike the volume. Real turning never exceeds maxNormalRotation per report (measured
+  // at 2 even at the fastest human spin), so for connectFlushTime ms after a (re)connect we drop
+  // any report larger than that as buffered backlog. Normal reports (<=2) always pass through.
+  connectFlushTime: 250, // ms after a (re)connect to suppress the buffered wake-up flush
+  maxNormalRotation: 2,  // largest |value| a real turn produces per report; larger => backlog
   
   // The number of subdivisions (aka resolution) the dial should use (bluview may need to be adjusted if this is changed)
-  // More importantly, this is the setting that the surface dial always re-connects with on Buster. By setting it here to match
-  // then I no longer have to reset the features after every event. It also makes this work on legacy as well as new
-  // versions of the OS without any special conditions.
-  //
-  // However, if DialServer is being used for other purposes and not running on Buster then
-  // you can use this value to control the dial resolution. See also highResolution below
   dialSteps: 72,
   
   // true to enable special cases needed when the dial is sending events faster. Probably should be set to
   // true if dialSteps > 360 but may require some experimentation
-  highResolution: false 
+  highResolution: false
 }
 
 const system = {

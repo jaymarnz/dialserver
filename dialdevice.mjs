@@ -24,6 +24,8 @@ const DeviceType = {
 export const EventType = {
   BUTTON: 1,
   ROTATE: 2,
+  CONNECT: 3,
+  DISCONNECT: 4,
 }
 
 export const Button = {
@@ -40,6 +42,7 @@ export class DialDevice {
   #eventFunc
   #monitor
   #buttonDown
+  #connected
 
   constructor(eventFunc, config = {}) {
     this.#eventFunc = eventFunc
@@ -72,6 +75,19 @@ export class DialDevice {
         if (this.#isSurfaceDial(device)) {
           Log.debug('monitor.on(remove) closing the device')
           this.#device.close()
+        }
+
+        // Detect disconnect. On current OS releases #isSurfaceDial can't match on 'remove'
+        // because the sysfs parent is already gone, but the removed objects still carry the
+        // dial's NAME directly, so match on that. Several interfaces are removed per disconnect,
+        // so the #connected guard reports it only once.
+        if (this.#connected &&
+            (this.#isSurfaceDial(device) ||
+             device.NAME === '"Surface Dial System Multi Axis"' ||
+             device.NAME === '"Surface Dial System Control"')) {
+          this.#connected = false
+          Log.debug('DialDevice has disconnected')
+          this.#eventFunc({ type: EventType.DISCONNECT })
         }
       } catch (error) {
         Log.error('monitor.on(remove):', error)
@@ -135,7 +151,12 @@ export class DialDevice {
     })
 
     this.#buzz(this.#config.buzzRepeatCountConnect)
-    this.#setFeatures()
+    if (this.#config.dialSteps !== 360) this.#setFeatures()
+
+    // signal that the dial's BLE link is up (after an idle disconnect this is the
+    // earliest moment anything knows the user is interacting with the dial)
+    this.#connected = true
+    this.#eventFunc({ type: EventType.CONNECT })
   }
 
   #buzz(repeatCount = 0) {

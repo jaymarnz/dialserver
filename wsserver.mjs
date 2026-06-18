@@ -8,8 +8,11 @@ export class WsServer {
   #config
   #wss
   #interval
+  #onConnection
 
-  constructor(config = {}) {
+  // onConnection(send) is called for each newly connected client with a send function
+  // bound to just that client, so the caller can push the current state to it immediately.
+  constructor(config = {}, onConnection) {
     this.#config = {
       ...{
         wsPort: 3000,
@@ -17,6 +20,7 @@ export class WsServer {
       },
       ...config
     }
+    this.#onConnection = onConnection
 
     this.#wss = new WebSocketServer({ port: this.#config.wsPort })
     this.#wss.on('error', error => Log.error('WsServer error:', error))
@@ -36,6 +40,17 @@ export class WsServer {
         Log.verbose(`client pong received: ${client.id}`)
         client.isAlive = true
       })
+
+      // let the caller push current state (eg. dial connection status) to this new client
+      if (this.#onConnection) {
+        try {
+          this.#onConnection((data) => {
+            if (client.readyState === WebSocket.OPEN) client.send(JSON.stringify(data))
+          })
+        } catch (error) {
+          Log.error('ws onConnection error:', error)
+        }
+      }
     })
 
     this.#wss.on('close', () => clearInterval(this.#interval))
