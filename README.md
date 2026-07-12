@@ -63,7 +63,7 @@ By default DialServer needs to be run as root which the install does for you. Bu
 
 1. Install the latest NodeJS version:
     ```
-    $ apt install nodejs npm
+    $ sudo apt install nodejs npm
     ```
 1. Install additional development tools to support NPM modules that require compilation:
     ```

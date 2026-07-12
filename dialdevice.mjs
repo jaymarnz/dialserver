@@ -15,6 +15,12 @@ const SurfaceDial = {
   pid: 0x091b
 }
 
+// udev reports the device NAME with the surrounding double-quotes as part of the string
+const DialName = {
+  MULTI_AXIS: '"Surface Dial System Multi Axis"',
+  CONTROL: '"Surface Dial System Control"'
+}
+
 const DeviceType = {
   NONE: 0,
   MULTI_AXIS: 1,
@@ -72,21 +78,21 @@ export class DialDevice {
     this.#monitor.on('remove', (device) => {
       try {
         Log.debug('monitor.on(remove) device:', device)
-        if (this.#isSurfaceDial(device)) {
-          Log.debug('monitor.on(remove) closing the device')
-          this.#device.close()
-        }
 
         // Detect disconnect. On current OS releases #isSurfaceDial can't match on 'remove'
         // because the sysfs parent is already gone, but the removed objects still carry the
         // dial's NAME directly, so match on that. Several interfaces are removed per disconnect,
-        // so the #connected guard reports it only once.
+        // so the #connected guard reports it only once. Closing the HID handle here is essential:
+        // it's the only place we can, since #isSurfaceDial no longer matches on 'remove'. Without
+        // it every idle-wake cycle leaks the open /dev/hidraw fd (and its now-deleted uhid device),
+        // which accumulates over days and progressively slows/breaks reconnects.
         if (this.#connected &&
             (this.#isSurfaceDial(device) ||
-             device.NAME === '"Surface Dial System Multi Axis"' ||
-             device.NAME === '"Surface Dial System Control"')) {
+             device.NAME === DialName.MULTI_AXIS ||
+             device.NAME === DialName.CONTROL)) {
           this.#connected = false
           Log.debug('DialDevice has disconnected')
+          this.#closeDevice()
           if (this.#eventFunc) this.#eventFunc({ type: EventType.DISCONNECT })
         }
       } catch (error) {
@@ -121,11 +127,11 @@ export class DialDevice {
     try {
       const parent = udev.getNodeParentBySyspath(device.syspath)
 
-      if (parent && parent.NAME === '"Surface Dial System Multi Axis"') {
+      if (parent && parent.NAME === DialName.MULTI_AXIS) {
         Log.debug('Found multi-axis device: ', device.DEVNAME)
         return DeviceType.MULTI_AXIS
       }
-      else if (parent && parent.NAME === '"Surface Dial System Control"') {
+      else if (parent && parent.NAME === DialName.CONTROL) {
         Log.debug('Found control device: ', device.DEVNAME)
         return DeviceType.CONTROL
       }
@@ -141,6 +147,9 @@ export class DialDevice {
 
   #startListening() {
     Log.debug('DialDevice creating HID')
+    // never leave a previous handle open - if we somehow reconnect without having seen the
+    // matching 'remove', closing here prevents the fd/uhid leak from accumulating
+    this.#closeDevice()
     this.#device = new HID.HID(SurfaceDial.vid, SurfaceDial.pid)
     this.#device.on('data', this.#dataReceived.bind(this))
     this.#device.on('error', (error) => {
@@ -157,6 +166,20 @@ export class DialDevice {
     // earliest moment anything knows the user is interacting with the dial)
     this.#connected = true
     if (this.#eventFunc) this.#eventFunc({ type: EventType.CONNECT })
+  }
+
+  // close and release the current HID handle. Safe to call when nothing is open.
+  #closeDevice() {
+    if (this.#device) {
+      try {
+        this.#device.removeAllListeners()
+        this.#device.close()
+        Log.debug('DialDevice closed HID')
+      } catch (error) {
+        Log.error('Error closing device:', error)
+      }
+      this.#device = undefined
+    }
   }
 
   #buzz(repeatCount = 0) {

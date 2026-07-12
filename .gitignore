@@ -1,3 +1,5 @@
 node_modules/
 devdocs/
 .DS_Store
+.claude
+.vscode
