@@ -3,3 +3,4 @@ devdocs/
 .DS_Store
 .claude
 .vscode
+copy2device.sh
