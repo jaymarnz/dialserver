@@ -11,8 +11,10 @@ See `index.html` for an example of connecting and viewing the web socket message
 { "button" : "up" }
 { "degrees" : 3.1 }
 { "degrees" : -5.3 }
+{ "battery" : 96 }
 { "status": "disconnected" }
 ````
+The `battery` message reports the dial's battery level as a percentage (0-100). The dial doesn't expose battery over HID, so it's read from BlueZ over D-Bus shortly after the dial (re)connects and broadcast to all clients. It's sent once per wake/connect and also pushed to each newly connected client.
 
 ## Operating system choices
 I've done my latest testing on a Raspberry Pi Zero 2W running Raspberry Pi OS Lite (64-bit) based on Trixie released 2025-12-04 and recommend using this OS as described in the installation steps below.

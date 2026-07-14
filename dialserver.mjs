@@ -3,6 +3,7 @@
 
 import { DialDevice, EventType, Button } from './dialdevice.mjs'
 import { WsServer } from './wsserver.mjs';
+import { Battery } from './battery.mjs'
 import { Log } from './log.mjs'
 
 export class DialServer {
@@ -11,6 +12,7 @@ export class DialServer {
   #config
   #wsServer
   #device
+  #battery
   #buttonState
   #buttonTimer
   #aggregateTimer
@@ -21,10 +23,15 @@ export class DialServer {
   constructor(config) {
     DialServer.#instance = this
     this.#config = config
+    // reports the dial's battery level (read over BLE/D-Bus, independent of the HID transport)
+    this.#battery = new Battery(this.#config, (percent) => this.#wsServer.send({ battery: percent }))
     // push the current dial status to each newly connected client so it knows the state
-    // immediately (eg. dial already connected before the client joined, or vice versa)
+    // immediately (eg. dial already connected before the client joined, or vice versa), plus the
+    // last known battery level if we have one
     this.#wsServer = this.#wsServer || new WsServer(this.#config, (send) => {
       send({ status: this.#dialConnected ? 'connected' : 'disconnected' })
+      const battery = this.#battery.lastPercent()
+      if (battery !== undefined) send({ battery })
     })
     this.#device = new DialDevice(this.#eventReceived.bind(this), this.#config).run()
   }
@@ -39,12 +46,14 @@ export class DialServer {
         this.#flushUntil = Date.now() + this.#config.connectFlushTime
         this.#dialConnected = true
         this.#wsServer.send({ status: 'connected' })
+        this.#battery.onConnect()
         break
 
       case EventType.DISCONNECT:
         Log.verbose('DISCONNECT')
         this.#dialConnected = false
         this.#wsServer.send({ status: 'disconnected' })
+        this.#battery.onDisconnect()
         break
 
       case EventType.BUTTON:

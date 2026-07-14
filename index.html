@@ -19,6 +19,7 @@
     tr.degrees .msg { color: #6db3ff; }
     tr.button  .msg { color: #ffd24c; }
     tr.status  .msg { color: #5cd65c; font-weight: bold; }
+    tr.battery .msg { color: #c58af9; font-weight: bold; }
     tr.other   .msg { color: #aaa; }
   </style>
 </head>
@@ -50,6 +51,7 @@
         if (typeof o.degrees === 'number') return 'degrees'
         if (typeof o.button === 'string') return 'button'
         if (typeof o.status === 'string') return 'status'
+        if (typeof o.battery === 'number') return 'battery'
       } catch (e) {}
       return 'other'
     }

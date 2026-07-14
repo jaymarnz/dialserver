@@ -10,7 +10,7 @@ import { Log } from './log.mjs'
 //
 // https://github.com/node-hid/node-hid#udev-device-permissions
 
-const SurfaceDial = {
+export const SurfaceDial = {
   vid: 0x045e,
   pid: 0x091b
 }

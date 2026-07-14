@@ -27,6 +27,12 @@ const defaultConfig = {
   // any report larger than that as buffered backlog. Normal reports (<=2) always pass through.
   connectFlushTime: 250, // ms after a (re)connect to suppress the buffered wake-up flush
   maxNormalRotation: 2,  // largest |value| a real turn produces per report; larger => backlog
+
+  // Battery reporting. The dial's battery level isn't available over HID, only over BLE, so it's
+  // read from BlueZ over D-Bus (busctl) after each (re)connect and broadcast as { battery: n }.
+  // The read is deferred to stay clear of the reconnect wake-up flush and give BlueZ time to
+  // resolve services; it's fully async so it never delays dial input.
+  batteryReadDelay: 15000, // ms after a (re)connect before reading the battery level
   
   // The number of subdivisions (aka resolution) the dial should use (bluview may need to be adjusted if this is changed)
   dialSteps: 72,
@@ -77,6 +83,10 @@ const argv = yargs(hideBin(process.argv))
     type: 'number',
     default: 3080
   })
+  .option('mac', {
+    describe: 'Bluetooth MAC of the dial for battery reporting (default: auto-discover)',
+    type: 'string'
+  })
   .parseSync()
 
 const config = {
@@ -87,6 +97,7 @@ const config = {
     wsPort: argv.port,
     htmlPort: argv.web,
     buzz: argv.buzz,
+    mac: argv.mac,
   }
 }
 
