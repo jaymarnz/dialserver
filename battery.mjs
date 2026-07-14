@@ -20,6 +20,7 @@ export class Battery {
   #lastPercent
   #devPath      // cached BlueZ object path, eg. /org/bluez/hci0/dev_70_BC_10_87_BF_6F
   #connectMac   // MAC reported by the monitor helper on connect (preferred over sysfs discovery)
+  #connected = false
   #pendingTimer
   #reading = false
 
@@ -29,17 +30,20 @@ export class Battery {
     this.#emit = emit
   }
 
-  // called on dial CONNECT - schedule a deferred read. The delay lets BlueZ finish
-  // ServicesResolved and keeps the work clear of the reconnect wake-up flush window.
+  // called on dial CONNECT - read now, retrying until it succeeds. The battery only becomes
+  // readable once BlueZ has resolved the dial's GATT services (~1.5s), so rather than guess a
+  // fixed delay we just retry until org.bluez.Battery1 answers (or we disconnect).
   onConnect(mac) {
     if (mac) this.#connectMac = mac
+    this.#connected = true
     clearTimeout(this.#pendingTimer)
-    this.#pendingTimer = setTimeout(() => this.#read(), this.#config.batteryReadDelay || 15000)
+    this.#pendingTimer = undefined
+    this.#read()
   }
 
-  // called on dial DISCONNECT - cancel a pending read so a disconnect inside the delay
-  // window doesn't try to read a device that's no longer there
+  // called on dial DISCONNECT - stop retrying so we don't poll a device that's gone
   onDisconnect() {
+    this.#connected = false
     clearTimeout(this.#pendingTimer)
     this.#pendingTimer = undefined
   }
@@ -49,22 +53,31 @@ export class Battery {
     return this.#lastPercent
   }
 
+  // retry the read while still connected (Battery1 not resolved yet, or a transient failure)
+  #scheduleRetry() {
+    if (!this.#connected || this.#pendingTimer) return
+    this.#pendingTimer = setTimeout(() => {
+      this.#pendingTimer = undefined
+      this.#read()
+    }, this.#config.batteryRetryTime || 2000)
+  }
+
   async #read() {
     if (this.#reading) return // never pile up reads
     this.#reading = true
     try {
       if (!this.#devPath) this.#devPath = await this.#resolveDevPath()
-      if (!this.#devPath) {
-        Log.debug('battery: could not resolve BlueZ device path')
-        return
-      }
 
-      const out = await this.#run('busctl',
-        ['get-property', 'org.bluez', this.#devPath, 'org.bluez.Battery1', 'Percentage'])
+      // --json gives a stable, structured result ({"type":"y","data":96}) instead of the
+      // human-oriented "y 96" text, so parsing can't drift with busctl's pretty-printing.
+      const out = this.#devPath && await this.#run('busctl',
+        ['--json=short', 'get-property', 'org.bluez', this.#devPath, 'org.bluez.Battery1', 'Percentage'])
 
-      const percent = this.#parsePercentage(out)
+      const percent = out ? this.#parsePercentage(out) : undefined
       if (percent === undefined) {
-        Log.debug('battery: could not parse percentage from:', out.trim())
+        // Battery1 isn't resolved yet (early in the connect) or a transient miss - try again
+        Log.debug('battery: not readable yet, will retry')
+        this.#scheduleRetry()
         return
       }
 
@@ -72,8 +85,8 @@ export class Battery {
       Log.verbose('battery:', percent)
       if (this.#emit) this.#emit(percent)
     } catch (error) {
-      // low-priority and best-effort: log and wait for the next reconnect, never retry aggressively
       Log.debug('battery read failed:', error.message)
+      this.#scheduleRetry()
     } finally {
       this.#reading = false
     }
@@ -143,12 +156,14 @@ export class Battery {
     return undefined
   }
 
-  // busctl prints a variant like "y 96"; pull the trailing integer and validate 0-100
+  // parse busctl --json output ({"type":"y","data":96}) and validate 0-100
   #parsePercentage(out) {
-    const m = out.trim().match(/(\d+)\s*$/)
-    if (!m) return undefined
-    const n = parseInt(m[1], 10)
-    return (n >= 0 && n <= 100) ? n : undefined
+    try {
+      const n = JSON.parse(out).data
+      return (Number.isInteger(n) && n >= 0 && n <= 100) ? n : undefined
+    } catch {
+      return undefined
+    }
   }
 
   // run a command and resolve its stdout. Async spawn only - never *Sync - so it can't block

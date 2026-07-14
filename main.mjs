@@ -36,10 +36,10 @@ const defaultConfig = {
   maxNormalRotation: 2,  // largest |value| a real turn produces per report; larger => backlog
 
   // Battery reporting. The dial's battery level isn't available over HID, only over BLE, so it's
-  // read from BlueZ over D-Bus (busctl) after each (re)connect and broadcast as { battery: n }.
-  // The read is deferred to give BlueZ time to resolve services; it's fully async so it never
-  // delays dial input.
-  batteryReadDelay: 15000, // ms after a (re)connect before reading the battery level
+  // read from BlueZ over D-Bus (busctl --json) after each (re)connect and broadcast as
+  // { battery: n }. Rather than guess when GATT is resolved, the read retries until Battery1
+  // answers; this is the interval between those retries. Fully async - never delays dial input.
+  batteryRetryTime: 2000, // ms between battery-read retries until it succeeds (or we disconnect)
 
   // The dial's rotation resolution (counts per revolution). We use the dial's native default of
   // 3600 (documented in devdocs/dialReportDescriptor.txt as the report's Logical/Physical Maximum)
@@ -104,4 +104,18 @@ Log.init(config)
 Log.verbose('config:', config)
 
 if (config.htmlPort !== 0) new HtmlServer(config)
-new DialServer(config)
+const dialServer = new DialServer(config)
+
+// Clean shutdown: kill the dialmon child so running directly (not under systemd) doesn't orphan
+// it on Ctrl+C. Under systemd the cgroup also stops dialmon; the two are compatible (see
+// DialDevice.stop). Idempotent so a SIGINT followed by SIGTERM can't double-run it.
+let shuttingDown = false
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => {
+    if (shuttingDown) return
+    shuttingDown = true
+    Log.debug(`received ${signal}, shutting down`)
+    dialServer.stop()
+    process.exit(0)
+  })
+}
