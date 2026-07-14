@@ -18,28 +18,39 @@ const defaultConfig = {
   aggregationTime: 50,
   buttonTime: 100, // ms to ignore rotations after a button press - needed because a rotation when muted acts like a button press
   minDegrees: 0.5, // minimum reportable degrees
-  buzzRepeatCountConnect: 4, // controls the "feel" on device wake-up
 
-  // Wake-up flush suppression. When the dial reconnects after an idle BLE drop it dumps the
-  // motion buffered during reconnect as a short burst of large-magnitude reports, which would
-  // otherwise spike the volume. Real turning never exceeds maxNormalRotation per report (measured
-  // at 2 even at the fastest human spin), so for connectFlushTime ms after a (re)connect we drop
-  // any report larger than that as buffered backlog. Normal reports (<=2) always pass through.
-  connectFlushTime: 250, // ms after a (re)connect to suppress the buffered wake-up flush
+  // Input transport: a passive HCI-monitor helper (dialmon) rather than hidraw. See
+  // dialdevice.mjs and devdocs/reconnect-speedup-plan.md. The bonded Surface Dial is
+  // auto-discovered by vendor/product, so there's nothing to configure. Internal overrides:
+  //   inputHandle - ATT attribute handle of the dial's input report (Surface Dial firmware const)
+  //   dialmonPath - path to the helper binary (default: ./dialmon next to the app)
+  inputHandle: '0x001a',
+  dialDiscoveryPollTime: 30000, // ms between rescans when no bonded Surface Dial is present yet
+
+  // Wake-up flush suppression. This existed because the OLD hidraw path opened late (~1.35s) and
+  // then flooded the buffered reports in one burst, spiking the volume. The passive monitor
+  // delivers reports live with no such flood, so it's disabled (connectFlushTime: 0). Kept as a
+  // configurable safety net; note maxNormalRotation must be recalibrated for the resolution in use
+  // before enabling (at dialSteps 3600 a fast turn legitimately exceeds the old value of 2).
+  connectFlushTime: 0,   // ms after a (re)connect to suppress a buffered wake-up flush (0 = off)
   maxNormalRotation: 2,  // largest |value| a real turn produces per report; larger => backlog
 
   // Battery reporting. The dial's battery level isn't available over HID, only over BLE, so it's
   // read from BlueZ over D-Bus (busctl) after each (re)connect and broadcast as { battery: n }.
-  // The read is deferred to stay clear of the reconnect wake-up flush and give BlueZ time to
-  // resolve services; it's fully async so it never delays dial input.
+  // The read is deferred to give BlueZ time to resolve services; it's fully async so it never
+  // delays dial input.
   batteryReadDelay: 15000, // ms after a (re)connect before reading the battery level
-  
-  // The number of subdivisions (aka resolution) the dial should use (bluview may need to be adjusted if this is changed)
-  dialSteps: 72,
-  
-  // true to enable special cases needed when the dial is sending events faster. Probably should be set to
-  // true if dialSteps > 360 but may require some experimentation
-  highResolution: false
+
+  // The dial's rotation resolution (counts per revolution). We use the dial's native default of
+  // 3600 (documented in devdocs/dialReportDescriptor.txt as the report's Logical/Physical Maximum)
+  // and never write a Resolution Multiplier feature report - the app is fully passive. Rotation is
+  // aggregated in software to degrees (aggregate * 360/dialSteps), so BlueView is unaffected.
+  // (bluview may need adjustment only if this is changed.)
+  dialSteps: 3600,
+
+  // Special-casing for the fast event stream (aggregation window + post-button suppression).
+  // Should be true whenever dialSteps > 360, which it now always is by default.
+  highResolution: true
 }
 
 const system = {
@@ -65,12 +76,6 @@ const argv = yargs(hideBin(process.argv))
     type: 'boolean',
     default: false
   })
-  .option('b', {
-    alias: 'buzz',
-    describe: 'Enable buzz on wake-up',
-    type: 'boolean',
-    default: false
-  })
   .option('p', {
     alias: 'port',
     describe: 'Web sockets port (ws://)',
@@ -83,10 +88,6 @@ const argv = yargs(hideBin(process.argv))
     type: 'number',
     default: 3080
   })
-  .option('mac', {
-    describe: 'Bluetooth MAC of the dial for battery reporting (default: auto-discover)',
-    type: 'string'
-  })
   .parseSync()
 
 const config = {
@@ -96,8 +97,6 @@ const config = {
     verbose: argv.verbose,
     wsPort: argv.port,
     htmlPort: argv.web,
-    buzz: argv.buzz,
-    mac: argv.mac,
   }
 }
 

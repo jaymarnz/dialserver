@@ -21,13 +21,15 @@ rsync -rt --delete --exclude node_modules $DIR/ $DEST
 find $DEST -type f -print0 | xargs -0 chmod 664
 find $DEST -type d -print0 | xargs -0 chmod 755
 
-# conditional install for node-hid on Rpi Zero W (v1 is 32 bit)
-if [[ $(uname -m) == armv6l ]]; then
-  echo -e "${BLUE}Installing node-hid from source (this may take awhile)${NC}"
-  (cd $DEST; npm install --build-from-source node-hid)
+# build the passive HCI-monitor helper (requires gcc / build-essential)
+echo -e "${BLUE}Building dialmon helper${NC}"
+if ! gcc -O2 -Wall -o $DEST/dialmon $DEST/dialmon.c; then
+  echo "ERROR: failed to build dialmon (is build-essential installed?)" 1>&2
+  exit 1
 fi
+chmod 755 $DEST/dialmon
 
-# install all other dependencies
+# install dependencies
 echo -e "${BLUE}Installing dependencies${NC}"
 (cd $DEST; npm install)
 

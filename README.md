@@ -29,7 +29,6 @@ Options:
 <table>
 <tr><td>-p,</td><td>--port</td><td>Web sockets port (ws://)</td><td>default: 3000</td>
 <tr><td>-w,</td><td>--web</td><td>Web server port (http://)</td><td>default: 3080</td>
-<tr><td>-b,</td><td>--buzz</td><td>Enable haptic feedback on wake-up (useful if there's a noticeable delay)</td><td></td>
 <tr><td>-d,</td><td>--debug</td><td>Enable debug logging</td><td></td>
 <tr><td></td><td>--verbose</td><td>Enable verbose logging</td><td></td>
 <tr><td>-v</td><td>--version</td><td>Show version number</td><td></td>
@@ -38,15 +37,16 @@ Options:
 
 It creates both a web server and a web-socket server. The web server is just used for spying on the output primarily for debugging. Connect to it with your browser and it serves a single page that displays data coming from the web-socket. See [index.html](https://github.com/jaymarnz/dialserver/blob/master/index.html) for an example. You can disable the web server with `--web=0`
 
-The Surface Dial's haptic feedback is optional to let you know when it wakes up and is ready to handle gestures. You can enable this with `--buzz`. This is useful if there is a noticeable delay when the device wakes up and reconnects. This was the case previously running on Bookworm but no longer seems to be so significant on Trixie. Try it without the haptic feedback but enable it if the delay is too long.
-
 When running as a server edit the comand line parameters in the ***dialserver.service*** file like this:
 ```
-ExecStart=/usr/bin/node /opt/dialserver/main.mjs --web=0 --buzz
+ExecStart=/usr/bin/node /opt/dialserver/main.mjs --web=0
 ```
 
+## How input is read (low-latency, passive)
+The Surface Dial is a Bluetooth LE HID device. After it idle-drops its BLE link (~5 min) it re-advertises on the next touch, but BlueZ then spends ~1.3 s rebuilding the HID device before `/dev/hidraw` delivers anything — which used to be a 1-2 s delay before the first turn/press registered. DialServer avoids that entirely: a tiny helper (`dialmon`, built by the installer) passively reads the kernel HCI monitor channel (the decrypted view `btmon` uses) and forwards the dial's input notifications the moment they arrive on air (~200 ms after reconnect), without touching the BlueZ-managed connection. It is fully passive — DialServer never writes to the dial (no haptic buzz, no resolution multiplier). See `devdocs/reconnect-speedup-plan.md` for the investigation. The bonded Surface Dial is identified automatically (by its Bluetooth vendor/product), so there is nothing to configure — just pair it once (below) and DialServer finds it.
+
 ## Running as root
-By default DialServer needs to be run as root which the install does for you. But if you want to run from non-root then you must create a udev rule based on the vendorId and productId. I had trouble getting this to work but you might give it try. The Microsoft Surface Dial vendorId is 0x045e and the productId is 0x091b. See https://github.com/node-hid/node-hid#udev-device-permissions for an example. I don't view running as root a big issue since the Rpi is dedicated to the Surface Dial and doesn't do anything else.
+DialServer runs as root (the install does this for you) because the `dialmon` helper needs to open the HCI monitor socket (`CAP_NET_RAW`+`CAP_NET_ADMIN`). Running as root isn't a concern since the Rpi is dedicated to the Surface Dial and does nothing else. If you'd rather not run as root you could instead grant those capabilities to the `dialmon` binary (e.g. `setcap 'cap_net_raw,cap_net_admin+ep' dialmon`) and run the Node app unprivileged, but that's untested.
 
 ## Installation ##
 1. Create an image on an SD card using the Raspberry Pi Imager. You can download the official imager from: https://www.raspberrypi.com/software/
@@ -67,9 +67,9 @@ By default DialServer needs to be run as root which the install does for you. Bu
     ```
     $ sudo apt install nodejs npm
     ```
-1. Install additional development tools to support NPM modules that require compilation:
+1. Install the build tools (the installer compiles the small `dialmon` C helper with gcc):
     ```
-    $ sudo apt install -y build-essential libusb-1.0-0 libusb-1.0-0-dev libudev-dev git curl
+    $ sudo apt install -y build-essential git curl
     ```
 1. Reboot to get everything up-to-date:
     ```

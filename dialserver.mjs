@@ -46,7 +46,7 @@ export class DialServer {
         this.#flushUntil = Date.now() + this.#config.connectFlushTime
         this.#dialConnected = true
         this.#wsServer.send({ status: 'connected' })
-        this.#battery.onConnect()
+        this.#battery.onConnect(event.mac)
         break
 
       case EventType.DISCONNECT:

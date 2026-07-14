@@ -1,30 +1,33 @@
 // Copyright 2023 jaymarnz, https://github.com/jaymarnz
 // See LICENSE for details
 
-import udev from 'udev'
-import HID from 'node-hid'
+import { spawn } from 'child_process'
+import { readdir, readFile } from 'fs/promises'
+import { fileURLToPath } from 'url'
 import { Log } from './log.mjs'
 
-// NOTE: To make this work we must be either running as root or have privileges to read/write
-// the HID device via a udev rule for the device based on the vendorId and productId
+// Passive fast-path input source for the Surface Dial.
 //
-// https://github.com/node-hid/node-hid#udev-device-permissions
+// We do NOT read the dial over HID/hidraw. After an idle BLE drop the dial re-advertises on the
+// next touch, and BlueZ then spends ~1.35 s rebuilding the HID-over-GATT device before hidraw
+// delivers anything - that delay was the whole UX problem. The dial's rotation/button
+// notifications are actually on the air ~200 ms after the link comes up; they're just withheld by
+// that rebuild. So instead we run a tiny privileged helper (`dialmon`) that passively reads the
+// kernel HCI monitor channel (the decrypted view `btmon` uses) and forwards the input
+// notifications immediately, without touching the BlueZ-managed connection. See
+// devdocs/reconnect-speedup-plan.md for the full investigation.
+//
+// The helper prints line-delimited events on stdout:
+//   C <MAC>          connected
+//   D                disconnected
+//   N <hexpayload>   input report value (no report-id prefix)
+// Input report payload decode: button = data[0] & 0x01, rotation = int16LE(data[1..2]).
 
+// Kept for battery.mjs, which still locates the dial's MAC from the (still-present) hidraw
+// sysfs node by vendor/product id. We simply never open that node ourselves anymore.
 export const SurfaceDial = {
   vid: 0x045e,
   pid: 0x091b
-}
-
-// udev reports the device NAME with the surrounding double-quotes as part of the string
-const DialName = {
-  MULTI_AXIS: '"Surface Dial System Multi Axis"',
-  CONTROL: '"Surface Dial System Control"'
-}
-
-const DeviceType = {
-  NONE: 0,
-  MULTI_AXIS: 1,
-  CONTROL: 2
 }
 
 export const EventType = {
@@ -43,12 +46,13 @@ export class DialDevice {
   static #instance // Singleton instance
 
   #config
-  #discovered = []
-  #device
   #eventFunc
-  #monitor
-  #buttonDown
-  #connected
+  #helper
+  #target        // the MAC we tell dialmon to watch (or the literal 'auto')
+  #buffer = ''
+  #buttonDown = false
+  #stopping = false
+  #respawnTimer
 
   constructor(eventFunc, config = {}) {
     this.#eventFunc = eventFunc
@@ -57,257 +61,166 @@ export class DialDevice {
   }
 
   run() {
-    this.#monitor = udev.monitor('input')
+    this.#startWhenReady()
+    return this
+  }
 
-    this.#monitor.on('add', (device) => {
-      const deviceType = this.#isSurfaceDial(device)
+  // Auto-discover the bonded Surface Dial's MAC by vendor/product so dialmon filters strictly on
+  // a real device identity rather than a coincidental ATT handle - the dial is identified with no
+  // configuration. If no dial is bonded there's nothing to do (the user has no dial or hasn't
+  // paired it yet): rather than exit - which would just crash-loop under systemd - we keep the
+  // WebSocket server up (reporting disconnected) and re-check periodically so pairing later
+  // "just works". (dialmon itself still accepts a MAC or 'auto' argument for manual/debug use.)
+  async #startWhenReady() {
+    if (this.#stopping) return
 
-      // when we've discovered both devices, we're connected!
-      if (deviceType !== DeviceType.NONE) {
-        // Log.debug(`sysattr (${deviceType}):`, udev.getSysattrBySyspath(device.syspath))
-
-        this.#discovered[deviceType] = true
-        if (this.#discovered[DeviceType.MULTI_AXIS] && this.#discovered[DeviceType.CONTROL]) {
-          Log.debug('DialDevice has connected')
-          this.#discovered = [] // for next time...
-          this.#startListening()
-        }
-      }
-    })
-
-    this.#monitor.on('remove', (device) => {
-      try {
-        Log.debug('monitor.on(remove) device:', device)
-
-        // Detect disconnect. On current OS releases #isSurfaceDial can't match on 'remove'
-        // because the sysfs parent is already gone, but the removed objects still carry the
-        // dial's NAME directly, so match on that. Several interfaces are removed per disconnect,
-        // so the #connected guard reports it only once. Closing the HID handle here is essential:
-        // it's the only place we can, since #isSurfaceDial no longer matches on 'remove'. Without
-        // it every idle-wake cycle leaks the open /dev/hidraw fd (and its now-deleted uhid device),
-        // which accumulates over days and progressively slows/breaks reconnects.
-        if (this.#connected &&
-            (this.#isSurfaceDial(device) ||
-             device.NAME === DialName.MULTI_AXIS ||
-             device.NAME === DialName.CONTROL)) {
-          this.#connected = false
-          Log.debug('DialDevice has disconnected')
-          this.#closeDevice()
-          if (this.#eventFunc) this.#eventFunc({ type: EventType.DISCONNECT })
-        }
-      } catch (error) {
-        Log.error('monitor.on(remove):', error)
-      }
-    })
-    
-    this.#monitor.on('change', (device) => {
-      try {
-        Log.debug('change:', device)
-        // Log.debug('parent:', udev.getNodeParentBySyspath(device.syspath))
-        // Log.debug('sysattr:', udev.getSysattrBySyspath(device.syspath))
-      } catch (error) {
-          Log.error('monitor.on(change):', error)
-      }
-    })
-
-    // is the device already connected?
-    if (this.#isPresent()) {
-      Log.debug('DialDevice is present')
-      this.#startListening()
+    const mac = await this.#discoverBondedDialMac()
+    if (mac) {
+      this.#target = mac
+      Log.debug('DialDevice discovered bonded Surface Dial', mac)
+      this.#spawnHelper()
+    } else {
+      const wait = this.#config.dialDiscoveryPollTime || 30000
+      Log.error(`No bonded Surface Dial (${this.#hex(SurfaceDial.vid)}:${this.#hex(SurfaceDial.pid)}) ` +
+                `found - pair one with bluetoothctl. Rechecking in ${wait / 1000}s.`)
+      setTimeout(() => this.#startWhenReady(), wait)
     }
   }
 
-  // is the SurfaceDial known to HID?
-  #isPresent() {
-    return HID.devices(SurfaceDial.vid, SurfaceDial.pid).length !== 0
-  }
-
-  // is a device the Surface Dial? Return a SurfaceDevice value
-  #isSurfaceDial(device) {
+  // Find the bonded Surface Dial's MAC from BlueZ's on-disk bond files. Each bonded device is a
+  // dir named by its MAC containing an `info` file whose [DeviceID] carries the (decimal)
+  // vendor/product - a reliable device identity that works even while the dial is disconnected.
+  async #discoverBondedDialMac() {
+    const base = '/var/lib/bluetooth'
+    const isMac = (s) => /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/i.test(s)
+    let adapters
     try {
-      const parent = udev.getNodeParentBySyspath(device.syspath)
-
-      if (parent && parent.NAME === DialName.MULTI_AXIS) {
-        Log.debug('Found multi-axis device: ', device.DEVNAME)
-        return DeviceType.MULTI_AXIS
-      }
-      else if (parent && parent.NAME === DialName.CONTROL) {
-        Log.debug('Found control device: ', device.DEVNAME)
-        return DeviceType.CONTROL
-      }
-      else
-        return DeviceType.NONE
+      adapters = await readdir(base)
     } catch (error) {
-      // too many unrelated errors on other devices... so stay quiet unless needed for debugging
-      // Log.verbose(`isSurfaceDial - udev.getNodeParentBySyspath error for device ${device.syspath}:`, error)
+      Log.debug('DialDevice cannot read', base, '-', error.message)
+      return undefined
     }
-
-    return false
-  }
-
-  #startListening() {
-    Log.debug('DialDevice creating HID')
-    // never leave a previous handle open - if we somehow reconnect without having seen the
-    // matching 'remove', closing here prevents the fd/uhid leak from accumulating
-    this.#closeDevice()
-    this.#device = new HID.HID(SurfaceDial.vid, SurfaceDial.pid)
-    this.#device.on('data', this.#dataReceived.bind(this))
-    this.#device.on('error', (error) => {
-      Log.debug('HID error:', error) // to prevent log growth for normal errors, I only report this to the debug log
-      // Don't close the device on Buster because it never discovers it again. On Trixie it doesn't appear to
-      // be necessary to close it either. So, I've moved device.close to the remove event
-      // this.#device.close()
-    })
-
-    this.#buzz(this.#config.buzzRepeatCountConnect)
-    if (this.#config.dialSteps !== 360) this.#setFeatures()
-
-    // signal that the dial's BLE link is up (after an idle disconnect this is the
-    // earliest moment anything knows the user is interacting with the dial)
-    this.#connected = true
-    if (this.#eventFunc) this.#eventFunc({ type: EventType.CONNECT })
-  }
-
-  // close and release the current HID handle. Safe to call when nothing is open.
-  #closeDevice() {
-    if (this.#device) {
-      try {
-        this.#device.removeAllListeners()
-        this.#device.close()
-        Log.debug('DialDevice closed HID')
-      } catch (error) {
-        Log.error('Error closing device:', error)
-      }
-      this.#device = undefined
-    }
-  }
-
-  #buzz(repeatCount = 0) {
-    /*
-    buf[0] = 0x01;    // Report ID
-    buf[1] = repeat;  // RepeatCount
-    buf[2] = 0x03;    // ManualTrigger (1-7)
-    buf[3] = 0x00;    // RetriggerPeriod (lo)
-    buf[4] = 0x00;    // RetriggerPeriod (hi)
-    */
-    try {
-      if (this.#device && this.#config.buzz) {
-        Log.debug('DialDevice sending buzz:', repeatCount)
-        this.#device.write([0x01, repeatCount & 0xff, 0x03, 0x00, 0x00])
-      }
-    } catch (error) {
-      Log.error('Error writing to device:', error)
-    }
-  }
-
-  // call eventFunc with {
-  //   type: 'BUTTON' | 'ROTATE', 
-  //   value: 'DOWN' | 'UP' | n
-  // }
-  #dataReceived(data) {
-    if (this.#eventFunc) {
-      const event = this.#decodeEvent(data)
-
-      // don't keep sending repeated button downs (just the first one)
-      if (event) {
-        // This prevents double button up events which I have occasionally seen
-        if (event.type === EventType.BUTTON && event.value === Button.UP) {
-          if (!this.#buttonDown) return // ignore the data
-          this.#buttonDown = false
-        }
-
-        // This emits only a single button down even though the dial sends
-        // a continuous stream of button down events while the button is pressed
-        if (event.type === EventType.BUTTON && event.value === Button.DOWN) {
-          if (this.#buttonDown) return // ignore the data
-          else this.#buttonDown = true
-        }
-
-        this.#eventFunc(event)
-      }
-    }
-  }
-
-  #decodeEvent(data) {
-    let event
-
-    if (data[0] === 0x01 && data.length >= 4) {
-      const value = data.readInt16LE(2)
-      if (value) {
-        event = { type: EventType.ROTATE, value }
-      }
-      else if (data[1] & 0x01) {
-        event = {
-          type: EventType.BUTTON,
-          value: Button.DOWN
-        }
-      }
-      else if ((data[1] & 0x01) === 0) {
-        event = {
-          type: EventType.BUTTON,
-          value: Button.UP
-        }
-      }
-    }
-
-    return event
-  }
-
-  #setFeatures() {
-    /*
-    it shouldn't be necessary to send a feature report since this just sets the default values. But for some
-    reason I've found on Buster at reconnect it resets the multiplier too low and so the volume doesn't work right
-   
-    buf[0] = 0x01                               // Feature report 0x01
-    buf[1] = 0x10                               // Resolution Multiplier - low
-    buf[2] = 0x0E                               // Resolution Multiplier - high
-    buf[3] = 0x00                               // Repeat Count (0-255)
-    buf[4] = if haptics { 0x03 } else { 0x02 }  // 0x03 = auto trigger (1-7)
-    buf[5] = 0x00                               // Waveform Cutoff Time (1-10)
-    buf[6] = 0x00                               // retrigger period - low (1-10)
-    buf[7] = 0x00                               // retrigger period - high (1-10)
-    */
-    const features = [0x01, this.#config.dialSteps & 0xff, (this.#config.dialSteps >> 8) & 0xff, 0x00, 0x01, 0x00, 0x00, 0x00]
-
-    try {
-      if (this.#device) {
-        Log.verbose('sendFeatureReport:', this.#hexString(features))
-        this.#device.sendFeatureReport(features)
-      }
-    } catch (error) {
-      // on Buster this happens if the device isn't currently connected. It won't matter though since the feature report
-      // we're currently sending is the default for the Surface Dial on Buster. On more recent versions of the OS we won't
-      // be calling this function when the device isn't connected.
-      Log.debug('Error sending feature report:', error.message)
-    }
-  }
-
-  // This is only used for debugging
-  // Note: On Buster the feature report is missing the first byte. This is a bug and doesn't happen on later releases
-  #getFeatureReport(reports = [0x01]) {
-    let gotError = false
-    let reportId
-
-    if (this.#device) {
-      reports.forEach((i) => {
+    for (const adapter of adapters) {
+      if (!isMac(adapter)) continue
+      let devices
+      try { devices = await readdir(`${base}/${adapter}`) } catch { continue }
+      for (const dev of devices) {
+        if (!isMac(dev)) continue
         try {
-          reportId = i
-          Log.verbose(`Feature report ${this.#hexByte(i)}: `, this.#hexString(this.#device.getFeatureReport(i, 73)))
-        } catch (error) {
-          Log.verbose(`error getting feature report ${this.#hexByte(reportId)}:`, error)
-          gotError = true
+          const info = await readFile(`${base}/${adapter}/${dev}/info`, 'utf8')
+          if (this.#isDial(info)) return dev.toUpperCase()
+        } catch {
+          // not readable / no info file - skip
         }
-      })
+      }
+    }
+    return undefined
+  }
+
+  // does a bond `info` file's [DeviceID] identify the Surface Dial? (Vendor/Product are decimal)
+  #isDial(info) {
+    const section = (info.match(/\[DeviceID\]([\s\S]*?)(?=\n\[|\s*$)/) || [, info])[1]
+    const vendor = /Vendor=(\d+)/.exec(section)
+    const product = /Product=(\d+)/.exec(section)
+    return !!vendor && !!product &&
+           parseInt(vendor[1], 10) === SurfaceDial.vid &&
+           parseInt(product[1], 10) === SurfaceDial.pid
+  }
+
+  #hex(n) { return '0x' + n.toString(16).padStart(4, '0') }
+
+  #spawnHelper() {
+    const bin = this.#config.dialmonPath || fileURLToPath(new URL('./dialmon', import.meta.url))
+    const target = this.#target || 'auto'
+    const handle = this.#config.inputHandle || '0x001a'
+    Log.debug(`DialDevice spawning ${bin} ${target} ${handle}`)
+
+    this.#helper = spawn(bin, [target, handle], { stdio: ['ignore', 'pipe', 'pipe'] })
+
+    this.#helper.on('error', (err) => {
+      Log.error('dialmon spawn error:', err.message)
+      this.#scheduleRespawn()
+    })
+    this.#helper.stderr.on('data', (d) => Log.debug('dialmon:', d.toString().trim()))
+    this.#helper.stdout.on('data', (chunk) => this.#onData(chunk))
+    this.#helper.on('exit', (code, signal) => {
+      Log.error(`dialmon exited (code=${code} signal=${signal})`)
+      // a lost helper means we also lost the connection state
+      if (this.#buttonDown) this.#buttonDown = false
+      this.#scheduleRespawn()
+    })
+  }
+
+  // supervise the helper: never leave it dead. Backoff avoids a tight crash loop.
+  #scheduleRespawn() {
+    if (this.#stopping || this.#respawnTimer) return
+    this.#respawnTimer = setTimeout(() => {
+      this.#respawnTimer = undefined
+      if (!this.#stopping) this.#spawnHelper()
+    }, this.#config.dialmonRespawnTime || 1000)
+  }
+
+  #onData(chunk) {
+    this.#buffer += chunk
+    let i
+    while ((i = this.#buffer.indexOf('\n')) >= 0) {
+      const line = this.#buffer.slice(0, i).trim()
+      this.#buffer = this.#buffer.slice(i + 1)
+      if (line) this.#onLine(line)
+    }
+  }
+
+  #onLine(line) {
+    const sp = line.indexOf(' ')
+    const tag = sp < 0 ? line : line.slice(0, sp)
+    const arg = sp < 0 ? '' : line.slice(sp + 1)
+
+    switch (tag) {
+      case 'C': {
+        // the helper discovers the dial's MAC from the LL connect and reports it here; pass it
+        // along so the battery reader doesn't have to sniff it out of sysfs separately
+        const mac = (arg && arg.toLowerCase() !== 'unknown') ? arg : undefined
+        Log.debug('DialDevice connected', mac || '')
+        this.#buttonDown = false
+        if (this.#eventFunc) this.#eventFunc({ type: EventType.CONNECT, mac })
+        break
+      }
+      case 'D':
+        Log.debug('DialDevice disconnected')
+        this.#buttonDown = false
+        if (this.#eventFunc) this.#eventFunc({ type: EventType.DISCONNECT })
+        break
+      case 'N':
+        this.#decodeInput(arg)
+        break
+      default:
+        Log.debug('dialmon unknown line:', line)
+    }
+  }
+
+  // Decode one input report notification and forward BUTTON/ROTATE events. Mirrors the previous
+  // HID decode semantics: a report carrying rotation is treated as rotation (button interplay is
+  // handled downstream), otherwise it's a button transition with the same up/down de-duplication.
+  #decodeInput(hex) {
+    if (!this.#eventFunc || hex.length < 6) return // need at least 3 bytes
+    const data = Buffer.from(hex, 'hex')
+    if (data.length < 3) return
+
+    const value = data.readInt16LE(1)
+    if (value) {
+      this.#eventFunc({ type: EventType.ROTATE, value })
+      return
     }
 
-    return !gotError
-  }
-
-  #hexByte(b) {
-    return b.toString(16).padStart(2, '0')
-  }
-
-  #hexString(arr) {
-    return Buffer.from(arr).toString('hex').replace(/(.{2})/g, "$1 ").trim().toUpperCase()
+    // no rotation => a button state report
+    if (data[0] & 0x01) {
+      if (this.#buttonDown) return // ignore repeated downs
+      this.#buttonDown = true
+      this.#eventFunc({ type: EventType.BUTTON, value: Button.DOWN })
+    } else {
+      if (!this.#buttonDown) return // ignore spurious ups
+      this.#buttonDown = false
+      this.#eventFunc({ type: EventType.BUTTON, value: Button.UP })
+    }
   }
 }

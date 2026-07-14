@@ -9,8 +9,7 @@ import { Log } from './log.mjs'
 // Reports the Surface Dial's battery level. The dial does NOT expose battery over HID - only
 // over BLE GATT (Battery Service 0x180F). BlueZ's battery plugin already caches that value and
 // exposes it on D-Bus as org.bluez.Battery1.Percentage, so we just read that property with
-// busctl. This is entirely separate from the node-hid/hidraw transport and the udev reconnect
-// path.
+// busctl. This is entirely separate from the passive HCI-monitor input path in dialdevice.mjs.
 //
 // The read is low-priority and time-insensitive and MUST never delay dial input: everything
 // here is async (subprocesses via spawn, sysfs via fs/promises) so the event loop stays free to
@@ -20,6 +19,7 @@ export class Battery {
   #emit
   #lastPercent
   #devPath      // cached BlueZ object path, eg. /org/bluez/hci0/dev_70_BC_10_87_BF_6F
+  #connectMac   // MAC reported by the monitor helper on connect (preferred over sysfs discovery)
   #pendingTimer
   #reading = false
 
@@ -31,7 +31,8 @@ export class Battery {
 
   // called on dial CONNECT - schedule a deferred read. The delay lets BlueZ finish
   // ServicesResolved and keeps the work clear of the reconnect wake-up flush window.
-  onConnect() {
+  onConnect(mac) {
+    if (mac) this.#connectMac = mac
     clearTimeout(this.#pendingTimer)
     this.#pendingTimer = setTimeout(() => this.#read(), this.#config.batteryReadDelay || 15000)
   }
@@ -97,16 +98,17 @@ export class Battery {
     return undefined
   }
 
-  // build the dev_XX_XX.. object-path fragment from --mac or from sysfs discovery
+  // build the dev_XX_XX.. object-path fragment. Prefer the MAC the monitor helper discovered on
+  // connect, then fall back to sniffing it from sysfs.
   async #deviceFragment() {
-    let mac = this.#config.mac || await this.#discoverMac()
+    let mac = this.#connectMac || await this.#discoverMac()
     if (!mac) return undefined
     mac = mac.replace(/^dev_/i, '')
     return 'dev_' + mac.toUpperCase().replace(/[:-]/g, '_')
   }
 
-  // find the dial's Bluetooth MAC via the hidraw uevent (HID_UNIQ). Fully async - no
-  // synchronous node-hid enumeration on the event loop.
+  // Fallback MAC discovery when the monitor-reported MAC isn't available yet: read the dial's
+  // Bluetooth MAC from the (still-present) hidraw uevent (HID_UNIQ). Fully async.
   async #discoverMac() {
     const base = '/sys/class/hidraw'
     let entries
