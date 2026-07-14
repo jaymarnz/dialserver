@@ -36,6 +36,11 @@ export class DialServer {
     this.#device = new DialDevice(this.#eventReceived.bind(this), this.#config).run()
   }
 
+  // stop background work (the dialmon helper) for a clean shutdown
+  stop() {
+    this.#device?.stop()
+  }
+
   // process input from the device
   // aggregate rotation but immediately process clicks
   #eventReceived(event) {
@@ -97,7 +102,8 @@ export class DialServer {
     this.#aggregate += value
 
     this.#aggregateTimer = this.#aggregateTimer || setTimeout(() => {
-      const degrees = this.#aggregate * (360 / this.#config.dialSteps)
+      // round to the nearest tenth of a degree - avoids float noise like 6.800000000000001
+      const degrees = Math.round(this.#aggregate * (360 / this.#config.dialSteps) * 10) / 10
       this.#aggregateTimer = undefined
       this.#aggregate = 0
       if (Math.abs(degrees) >= this.#config.minDegrees) {

@@ -144,6 +144,7 @@ export class DialDevice {
     this.#helper.stderr.on('data', (d) => Log.debug('dialmon:', d.toString().trim()))
     this.#helper.stdout.on('data', (chunk) => this.#onData(chunk))
     this.#helper.on('exit', (code, signal) => {
+      if (this.#stopping) { Log.debug('dialmon stopped'); return }
       Log.error(`dialmon exited (code=${code} signal=${signal})`)
       // a lost helper means we also lost the connection state
       if (this.#buttonDown) this.#buttonDown = false
@@ -158,6 +159,20 @@ export class DialDevice {
       this.#respawnTimer = undefined
       if (!this.#stopping) this.#spawnHelper()
     }, this.#config.dialmonRespawnTime || 1000)
+  }
+
+  // Stop the helper and cancel any pending respawn. Idempotent. Used on shutdown so a directly-run
+  // instance (not under systemd) doesn't orphan dialmon on Ctrl+C. Under systemd this is redundant
+  // with the cgroup kill and harmless: kill() on an already-signalled/exited child returns false
+  // rather than throwing, so the two "stoppers" can't conflict.
+  stop() {
+    this.#stopping = true
+    clearTimeout(this.#respawnTimer)
+    this.#respawnTimer = undefined
+    if (this.#helper) {
+      this.#helper.kill()   // SIGTERM; no-op/false if it's already gone
+      this.#helper = undefined
+    }
   }
 
   #onData(chunk) {
