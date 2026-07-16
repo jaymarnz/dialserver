@@ -49,6 +49,13 @@ export class DialServer {
         Log.verbose('CONNECT')
         // start the window during which we suppress the dial's buffered wake-up flush
         this.#flushUntil = Date.now() + this.#config.connectFlushTime
+        // clear any stale button suppression / partial rotation so a reconnect starts fresh
+        this.#buttonState = Button.UP
+        clearTimeout(this.#buttonTimer)
+        this.#buttonTimer = undefined
+        clearTimeout(this.#aggregateTimer)
+        this.#aggregateTimer = undefined
+        this.#aggregate = 0
         this.#dialConnected = true
         this.#wsServer.send({ status: 'connected' })
         this.#battery.onConnect(event.mac)
@@ -102,10 +109,12 @@ export class DialServer {
     this.#aggregate += value
 
     this.#aggregateTimer = this.#aggregateTimer || setTimeout(() => {
+      this.#aggregateTimer = undefined
       // round to the nearest tenth of a degree - avoids float noise like 6.800000000000001
       const degrees = Math.round(this.#aggregate * (360 / this.#config.dialSteps) * 10) / 10
-      this.#aggregateTimer = undefined
       this.#aggregate = 0
+      // minDegrees is one count (0.1 deg at dialSteps 3600) so even a slow turn registers each
+      // window; the aggregationTime window batches consecutive counts and caps the send rate.
       if (Math.abs(degrees) >= this.#config.minDegrees) {
         this.#wsServer.send({ degrees })
       }

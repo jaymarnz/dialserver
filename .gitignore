@@ -1,7 +1,4 @@
 node_modules/
-devdocs/
 dialmon
 .DS_Store
-.claude
-.vscode
 copy2device.sh

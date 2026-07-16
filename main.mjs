@@ -17,7 +17,8 @@ const defaultConfig = {
   htmlPort: 3080,
   aggregationTime: 50,
   buttonTime: 100, // ms to ignore rotations after a button press - needed because a rotation when muted acts like a button press
-  minDegrees: 0.5, // minimum reportable degrees
+  minDegrees: 0.1, // minimum reportable degrees - one count at dialSteps 3600 (360/3600), so slow
+                   // turns still register each window instead of being discarded below threshold
 
   // Input transport: a passive HCI-monitor helper (dialmon) rather than hidraw. See
   // dialdevice.mjs and devdocs/reconnect-speedup-plan.md. The bonded Surface Dial is
@@ -26,6 +27,16 @@ const defaultConfig = {
   //   dialmonPath - path to the helper binary (default: ./dialmon next to the app)
   inputHandle: '0x001a',
   dialDiscoveryPollTime: 30000, // ms between rescans when no bonded Surface Dial is present yet
+
+  // Press-vs-turn discrimination (dialdevice.mjs #decodeInput). The dial's flag bits can't tell a
+  // press from a turn: the button bit trips mid-turn AND a real press can carry the motion bit with
+  // zero rotation. What separates them is that a press settles while a turn keeps rotating, judged
+  // only from the rotation AFTER the button bit rises (a preceding turn must not taint the next
+  // press). A button-hold becomes a turn once post-button rotation exceeds pressTurnThreshold; it
+  // becomes a real press once the dial stays still for pressConfirmTime while held. Measured on the
+  // dial: a press accumulates <=~27 counts total; a turn bursts far past 50 within a report or two.
+  pressTurnThreshold: 50, // counts of post-button rotation above which the hold is a turn, not a press
+  pressConfirmTime: 50,   // ms the dial must be still while held before it counts as a real press (DOWN)
 
   // Wake-up flush suppression. This existed because the OLD hidraw path opened late (~1.35s) and
   // then flooded the buffered reports in one burst, spiking the volume. The passive monitor

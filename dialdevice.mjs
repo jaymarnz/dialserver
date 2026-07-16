@@ -50,7 +50,10 @@ export class DialDevice {
   #helper
   #target        // the MAC we tell dialmon to watch (or the literal 'auto')
   #buffer = ''
-  #buttonDown = false
+  #btnPhase = 'idle'    // button-hold state machine: 'idle'|'pending'|'down'|'turn' (see #decodeInput)
+  #settleRot = 0        // |rotation| seen since the button bit rose (decides press vs. turn)
+  #heldRot = 0          // rotation withheld during 'pending' so press jitter can't leak as volume
+  #confirmTimer         // fires once the dial is still while held -> commit a real DOWN
   #stopping = false
   #respawnTimer
 
@@ -147,7 +150,7 @@ export class DialDevice {
       if (this.#stopping) { Log.debug('dialmon stopped'); return }
       Log.error(`dialmon exited (code=${code} signal=${signal})`)
       // a lost helper means we also lost the connection state
-      if (this.#buttonDown) this.#buttonDown = false
+      this.#resetGesture()
       this.#scheduleRespawn()
     })
   }
@@ -169,10 +172,21 @@ export class DialDevice {
     this.#stopping = true
     clearTimeout(this.#respawnTimer)
     this.#respawnTimer = undefined
+    clearTimeout(this.#confirmTimer)
+    this.#confirmTimer = undefined
     if (this.#helper) {
       this.#helper.kill()   // SIGTERM; no-op/false if it's already gone
       this.#helper = undefined
     }
+  }
+
+  // clear per-gesture button/rotation state (on connect, disconnect, or a lost helper)
+  #resetGesture() {
+    clearTimeout(this.#confirmTimer)
+    this.#confirmTimer = undefined
+    this.#btnPhase = 'idle'
+    this.#settleRot = 0
+    this.#heldRot = 0
   }
 
   #onData(chunk) {
@@ -196,13 +210,13 @@ export class DialDevice {
         // along so the battery reader doesn't have to sniff it out of sysfs separately
         const mac = (arg && arg.toLowerCase() !== 'unknown') ? arg : undefined
         Log.debug('DialDevice connected', mac || '')
-        this.#buttonDown = false
+        this.#resetGesture()
         if (this.#eventFunc) this.#eventFunc({ type: EventType.CONNECT, mac })
         break
       }
       case 'D':
         Log.debug('DialDevice disconnected')
-        this.#buttonDown = false
+        this.#resetGesture()
         if (this.#eventFunc) this.#eventFunc({ type: EventType.DISCONNECT })
         break
       case 'N':
@@ -213,29 +227,84 @@ export class DialDevice {
     }
   }
 
-  // Decode one input report notification and forward BUTTON/ROTATE events. Mirrors the previous
-  // HID decode semantics: a report carrying rotation is treated as rotation (button interplay is
-  // handled downstream), otherwise it's a button transition with the same up/down de-duplication.
+  // Decode one input report and forward ROTATE / BUTTON events. Report byte layout (no report-id
+  // prefix): data[0] flags (bit 0x01 = button, bit 0x02 = motion), data[1..2] = int16 rotation.
+  //
+  // The flag bits are NOT reliable discriminators on their own. The button is so sensitive that a
+  // hard turn/flick trips its bit mid-turn (0x03), and - conversely - a real press often arrives
+  // with the motion bit set and ZERO rotation (also 0x03). Pressing and turning are mutually
+  // exclusive intents; what separates them is that a press's rotation SETTLES (stops) while a turn's
+  // CONTINUES. So when the button bit rises we don't decide yet - we hold, withholding rotation so
+  // jitter can't leak as volume, and watch:
+  //   - rotation keeps coming (> pressTurnThreshold): it's a turn - flush the held rotation, stream
+  //     the rest, never emit a button (rejects the mid-turn trip and the rotate-into-press case).
+  //   - the dial goes still for pressConfirmTime while held: it's a real press - emit DOWN now and
+  //     UP on release, preserving the real hold duration. BlueView times DOWN->UP to tell a short
+  //     press (mute) from a long press (>=500ms, pause), so a genuine duration is required.
+  //   - released before it settled (a quick tap): emit DOWN+UP at once - still a short press.
   #decodeInput(hex) {
-    if (!this.#eventFunc || hex.length < 6) return // need at least 3 bytes
+    if (!this.#eventFunc || hex.length < 6) return // need at least 3 bytes (1 flags + 2 rotation)
     const data = Buffer.from(hex, 'hex')
     if (data.length < 3) return
 
     const value = data.readInt16LE(1)
-    if (value) {
-      this.#eventFunc({ type: EventType.ROTATE, value })
-      return
+    const buttonBit = (data[0] & 0x01) !== 0
+    const threshold = this.#config.pressTurnThreshold || 50
+    let forwardRot = true
+
+    if (buttonBit) {
+      if (this.#btnPhase === 'idle') {
+        this.#btnPhase = 'pending'
+        this.#settleRot = 0
+        this.#heldRot = 0
+        this.#armConfirm()
+      }
+      if (this.#btnPhase === 'pending') {
+        this.#settleRot += Math.abs(value)
+        this.#heldRot += value
+        if (this.#settleRot > threshold) {
+          // rotation kept coming - this hold is a turn, not a press: release what we withheld
+          clearTimeout(this.#confirmTimer)
+          this.#confirmTimer = undefined
+          this.#btnPhase = 'turn'
+          if (this.#heldRot) this.#eventFunc({ type: EventType.ROTATE, value: this.#heldRot })
+        } else if (Math.abs(value) >= 2) {
+          // still moving (>1 count is real motion, not settle jitter) - restart the quiet timer
+          this.#armConfirm()
+        }
+        forwardRot = false // withhold pending rotation (flushed above if it just became a turn)
+      } else if (this.#btnPhase === 'down') {
+        forwardRot = false // pressed and held; dialserver also suppresses rotation while down
+      }
+      // 'turn': fall through and stream rotation normally
+    } else {
+      if (this.#btnPhase === 'pending') {
+        // released before it settled - a quick tap: emit a full (short) press now
+        clearTimeout(this.#confirmTimer)
+        this.#confirmTimer = undefined
+        this.#eventFunc({ type: EventType.BUTTON, value: Button.DOWN })
+        this.#eventFunc({ type: EventType.BUTTON, value: Button.UP })
+        forwardRot = false
+      } else if (this.#btnPhase === 'down') {
+        this.#eventFunc({ type: EventType.BUTTON, value: Button.UP })
+        forwardRot = false
+      }
+      this.#btnPhase = 'idle'
     }
 
-    // no rotation => a button state report
-    if (data[0] & 0x01) {
-      if (this.#buttonDown) return // ignore repeated downs
-      this.#buttonDown = true
+    if (forwardRot && value) this.#eventFunc({ type: EventType.ROTATE, value })
+  }
+
+  // (re)arm the settle timer: once the dial has been still for pressConfirmTime while the button is
+  // held, the hold is a real press - commit DOWN (UP follows on release, giving BlueView the true
+  // duration it needs to distinguish a mute tap from a long-press pause).
+  #armConfirm() {
+    clearTimeout(this.#confirmTimer)
+    this.#confirmTimer = setTimeout(() => {
+      this.#confirmTimer = undefined
+      if (this.#btnPhase !== 'pending') return
+      this.#btnPhase = 'down'
       this.#eventFunc({ type: EventType.BUTTON, value: Button.DOWN })
-    } else {
-      if (!this.#buttonDown) return // ignore spurious ups
-      this.#buttonDown = false
-      this.#eventFunc({ type: EventType.BUTTON, value: Button.UP })
-    }
+    }, this.#config.pressConfirmTime || 50)
   }
 }
