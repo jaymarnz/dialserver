@@ -42,9 +42,6 @@ When running as a server edit the comand line parameters in the ***dialserver.se
 ExecStart=/usr/bin/node /opt/dialserver/main.mjs --web=0
 ```
 
-## How input is read (low-latency, passive)
-The Surface Dial is a Bluetooth LE HID device. After it idle-drops its BLE link (~5 min) it re-advertises on the next touch, but BlueZ then spends ~1.3 s rebuilding the HID device before `/dev/hidraw` delivers anything — which used to be a 1-2 s delay before the first turn/press registered. DialServer avoids that entirely: a tiny helper (`dialmon`, built by the installer) passively reads the kernel HCI monitor channel (the decrypted view `btmon` uses) and forwards the dial's input notifications the moment they arrive on air (~200 ms after reconnect), without touching the BlueZ-managed connection. It is fully passive — DialServer never writes to the dial (no haptic buzz, no resolution multiplier). See `devdocs/reconnect-speedup-plan.md` for the investigation. The bonded Surface Dial is identified automatically (by its Bluetooth vendor/product), so there is nothing to configure — just pair it once (below) and DialServer finds it.
-
 ## Running as root
 DialServer runs as root (the install does this for you) because the `dialmon` helper needs to open the HCI monitor socket (`CAP_NET_RAW`+`CAP_NET_ADMIN`). Running as root isn't a concern since the Rpi is dedicated to the Surface Dial and does nothing else. If you'd rather not run as root you could instead grant those capabilities to the `dialmon` binary (e.g. `setcap 'cap_net_raw,cap_net_admin+ep' dialmon`) and run the Node app unprivileged, but that's untested.
 
