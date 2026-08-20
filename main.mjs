@@ -38,14 +38,6 @@ const defaultConfig = {
   pressTurnThreshold: 50, // counts of post-button rotation above which the hold is a turn, not a press
   pressConfirmTime: 50,   // ms the dial must be still while held before it counts as a real press (DOWN)
 
-  // Wake-up flush suppression. This existed because the OLD hidraw path opened late (~1.35s) and
-  // then flooded the buffered reports in one burst, spiking the volume. The passive monitor
-  // delivers reports live with no such flood, so it's disabled (connectFlushTime: 0). Kept as a
-  // configurable safety net; note maxNormalRotation must be recalibrated for the resolution in use
-  // before enabling (at dialSteps 3600 a fast turn legitimately exceeds the old value of 2).
-  connectFlushTime: 0,   // ms after a (re)connect to suppress a buffered wake-up flush (0 = off)
-  maxNormalRotation: 2,  // largest |value| a real turn produces per report; larger => backlog
-
   // Battery reporting. The dial's battery level isn't available over HID, only over BLE, so it's
   // read from BlueZ over D-Bus (busctl --json) after each (re)connect and broadcast as
   // { battery: n }. Rather than guess when GATT is resolved, the read retries until Battery1

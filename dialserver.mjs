@@ -17,7 +17,6 @@ export class DialServer {
   #buttonTimer
   #aggregateTimer
   #aggregate = 0
-  #flushUntil = 0
   #dialConnected = false
 
   constructor(config) {
@@ -47,8 +46,6 @@ export class DialServer {
     switch (event.type) {
       case EventType.CONNECT:
         Log.verbose('CONNECT')
-        // start the window during which we suppress the dial's buffered wake-up flush
-        this.#flushUntil = Date.now() + this.#config.connectFlushTime
         // clear any stale button suppression / partial rotation so a reconnect starts fresh
         this.#buttonState = Button.UP
         clearTimeout(this.#buttonTimer)
@@ -87,14 +84,6 @@ export class DialServer {
         break
 
       case EventType.ROTATE:
-        // Ignore the coalesced backlog the dial dumps right after a (re)connect. Real turning
-        // never exceeds maxNormalRotation per report, so a larger report this soon after connect
-        // is buffered wake-up motion, not intent - dropping it prevents the volume spike.
-        if (Date.now() < this.#flushUntil && Math.abs(event.value) > this.#config.maxNormalRotation) {
-          Log.verbose('ignoring wake-up flush ROTATE:', event.value)
-          break
-        }
-
         if (!this.#config.highResolution || (this.#buttonState !== Button.DOWN && !this.#buttonTimer)) {
           Log.verbose('ROTATE:', event.value)
           this.#aggregateRotation(event.value)

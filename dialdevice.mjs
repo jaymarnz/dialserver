@@ -54,6 +54,7 @@ export class DialDevice {
   #settleRot = 0        // |rotation| seen since the button bit rose (decides press vs. turn)
   #heldRot = 0          // rotation withheld during 'pending' so press jitter can't leak as volume
   #confirmTimer         // fires once the dial is still while held -> commit a real DOWN
+  #connectTime = 0      // Date.now() of the last CONNECT (diagnostic: dates press/turn vs. reconnect)
   #stopping = false
   #respawnTimer
 
@@ -210,6 +211,7 @@ export class DialDevice {
         // along so the battery reader doesn't have to sniff it out of sysfs separately
         const mac = (arg && arg.toLowerCase() !== 'unknown') ? arg : undefined
         Log.debug('DialDevice connected', mac || '')
+        this.#connectTime = Date.now()
         this.#resetGesture()
         if (this.#eventFunc) this.#eventFunc({ type: EventType.CONNECT, mac })
         break
@@ -282,6 +284,7 @@ export class DialDevice {
         // released before it settled - a quick tap: emit a full (short) press now
         clearTimeout(this.#confirmTimer)
         this.#confirmTimer = undefined
+        this.#noteHeldRotDiscard('quick-tap')
         this.#eventFunc({ type: EventType.BUTTON, value: Button.DOWN })
         this.#eventFunc({ type: EventType.BUTTON, value: Button.UP })
         forwardRot = false
@@ -304,7 +307,19 @@ export class DialDevice {
       this.#confirmTimer = undefined
       if (this.#btnPhase !== 'pending') return
       this.#btnPhase = 'down'
+      this.#noteHeldRotDiscard('settle-timer')
       this.#eventFunc({ type: EventType.BUTTON, value: Button.DOWN })
     }, this.#config.pressConfirmTime || 50)
+  }
+
+  // Diagnostic: a press was committed while it had accumulated withheld rotation (heldRot), so that
+  // rotation is dropped rather than emitted - the delicate seam of the press/turn split. Logs how
+  // much it discards and how soon after a connect, so a rare mis-split stays debuggable. Only fires
+  // when there was withheld rotation to drop.
+  #noteHeldRotDiscard(via) {
+    if (!this.#heldRot) return
+    const sinceConnect = this.#connectTime ? Date.now() - this.#connectTime : -1
+    Log.debug(`press via ${via}: dropping withheld rotation heldRot=${this.#heldRot} ` +
+              `settleRot=${this.#settleRot}, ${sinceConnect}ms after connect`)
   }
 }
